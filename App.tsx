@@ -5,29 +5,29 @@ import { NavigationContainer, useNavigation, ParamListBase } from '@react-naviga
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { api, clearToken, getToken, ApiError, User } from './lib/api';
+import { ThemeProvider, useTheme, useThemeSettings } from './ThemeContext';
+import AppearanceScreen from './screens/settings/AppearanceScreen';
+import { DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
 
 const Stack = createNativeStackNavigator();
 
 // ---------- Theme ----------
-
-const ThemeContext = createContext<Theme | undefined>(undefined);
-
-export const useTheme = () => {
-  const theme = useContext(ThemeContext);
-  if (!theme) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
-  return theme;
-};
-
-export const ThemeProvider = ({ children }: { children: ReactNode }) => {
-  const theme = themes.light; // Default to light theme, you can change this or make it dynamic
-  return (
-    <ThemeContext.Provider value={theme}>
-      {children}
-    </ThemeContext.Provider>
-  );
-};
+   function ThemedNavigation({ children }: { children: ReactNode }) {
+     const { theme, isDark } = useThemeSettings();
+     const base = isDark ? DarkTheme : DefaultTheme;
+     const navTheme = {
+       ...base,
+       colors: { ...base.colors, primary: theme.primary, background: theme.background,
+                 card: theme.surface, text: theme.text, border: theme.border },
+     };
+     return (
+       <NavigationContainer theme={navTheme}>
+         <StatusBar style={isDark ? 'light' : 'dark'} />
+         {children}
+       </NavigationContainer>
+     );
+   }
 
 // ---------- Auth ----------
 // Holds the logged-in user. null = logged out, so the navigator shows the login screens.
@@ -58,7 +58,7 @@ const features = [
 ];
 
 // ---------- Login / Register screens (shown when logged out) ----------
-
+// TODO move these to their own files, and add more content to them. For now they are just placeholders.
 function LoginScreen() {
   const { signIn } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
@@ -206,6 +206,7 @@ function HomeScreen() {
   );
 }
 
+// TODO, organize these screens into their own files, and add more content to them. For now they are just placeholders.
 function ClothingScreen() {
   return (
     <View style={styles.content}>
@@ -283,6 +284,7 @@ function MyStack({ loggedIn }: { loggedIn: boolean }) {
           <Stack.Screen name="Create New Outfit" component={CreateNewOutfitScreen} />
           <Stack.Screen name="AI Wardrobe Helper" component={AIWardrobeHelperScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
+             <Stack.Screen name="Appearance" component={AppearanceScreen} />
         </>
       ) : (
         <>
@@ -340,9 +342,9 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <AuthContext.Provider value={auth}>
-          <NavigationContainer>
+          <ThemedNavigation>
             <MyStack loggedIn={user !== null} />
-          </NavigationContainer>
+          </ThemedNavigation>
         </AuthContext.Provider>
       </ThemeProvider>
     </SafeAreaProvider>
