@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { themes, Theme } from './theme';
-import { StyleSheet, Text, View, Pressable, TextInput, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, Pressable, TextInput, Alert, ActivityIndicator, ScrollView, SectionList } from 'react-native';
 import { NavigationContainer, useNavigation, ParamListBase } from '@react-navigation/native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -238,20 +238,38 @@ function AIWardrobeHelperScreen() {
   );
 }
 
+// ---------- Settings screen  ----------
 function SettingsScreen() {
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
+  const notYet = (label: string) => () => Alert.alert(label, 'This feature is not implemented yet.');
+
+  const settingsSections = [
+    { title: 'Account and Security', data: [
+      { label: 'Sign Out', onPress: signOut },
+      { label: '2FA Settings', onPress: notYet('2FA Settings') },
+      { label: 'Change Email', onPress: notYet('Change Email') },
+      { label: 'Change Password', onPress: notYet('Change Password') },
+      { label: 'Delete Account', onPress: notYet('Delete Account'), destructive: true },
+    ]},
+    { title: 'App Settings', data: [
+      { label: 'Appearance', onPress: notYet('Appearance') },
+    ]},
+  ];
 
   return (
-    <View style={styles.content}>
-      <Text>Signed in as {user?.first_name} {user?.last_name}</Text>
-      <Text style={{ color: '#666', marginBottom: 12 }}>{user?.email}</Text>
-      <Pressable style={styles.buttonOutline} onPress={signOut}>
-        <Text>Sign Out</Text>
-      </Pressable>
-    </View>
+    <SectionList
+      sections={settingsSections}
+      keyExtractor={(item) => item.label}
+      renderSectionHeader={({ section }) => <Text style={styles.sectionHeader}>{section.title}</Text>}
+      renderItem={({ item }) => (
+        <Pressable style={styles.row} onPress={item.onPress}>
+          <Text style={item.destructive ? { color: '#d11' } : undefined}>{item.label}</Text>
+          <Text>›</Text>
+        </Pressable>
+      )}
+    />
   );
 }
-
 // Stack navigator for the main screens
 // Shows the login screens when logged out, and the app screens when logged in
 function MyStack({ loggedIn }: { loggedIn: boolean }) {
@@ -331,6 +349,7 @@ export default function App() {
   );
 }
 
+// ---------- Styles ----------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -387,5 +406,21 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 12,
+  },
+  sectionHeader: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
 });
