@@ -6,6 +6,8 @@ import * as SecureStore from 'expo-secure-store';
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const TOKEN_KEY = 'session_token';
 
+export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong.');
+
 export type User = {
   user_id: number;
   first_name: string;
