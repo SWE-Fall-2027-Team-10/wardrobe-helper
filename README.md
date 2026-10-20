@@ -9,7 +9,7 @@ Wardrobe Maker is a mobile app that gives users one place to catalog the clothes
 | Member | Main responsibilities |
 |---|---|
 | O'Neal Madom Madom | Sprint 2 coordinator, requirements, user management, database integration |
-| Andrew Jenkins | Problem statement, requirements, frontend development |
+| Andrew Jenkins | Problem statement, requirements, backend development, SQL Schema design |
 | Amaaz Lakhani | Backend development, database, API development |
 | Ezekiel Babara | Activity diagrams, frontend development, testing |
 | Japroz Singh Saini | Context diagram, database design, documentation |
