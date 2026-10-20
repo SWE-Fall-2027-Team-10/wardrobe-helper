@@ -6,15 +6,18 @@ import { useThemeSettings } from '../../ThemeContext';
 const displayName = (name: string) => name.charAt(0).toUpperCase() + name.slice(1);
 
 export default function AppearanceScreen() {
-  const { theme, themeName, setThemeName } = useThemeSettings();
+  const { theme, themeName, setThemeName } = useThemeSettings(); // Creates an array of the theme entries, so we can map over them and display each one as an option.
 
   return (
     <ScrollView style={{ backgroundColor: theme.background }} contentContainerStyle={styles.content}>
       <Text style={[styles.sectionHeader, { color: theme.textMuted }]}>Theme</Text>
 
+      // Maps over the themes object and creates a Pressable for each theme option. When pressed, it sets the themeName in the context to the selected theme.
       {Object.entries(themes).map(([name, option]) => {
         const selected = name === themeName;
         return (
+          
+          // button component for each theme option. When pressed, it sets the themeName in the context to the selected theme.
           <Pressable
             key={name}
             onPress={() => setThemeName(name)}
@@ -36,6 +39,7 @@ export default function AppearanceScreen() {
               {selected && <View style={[styles.radioDot, { backgroundColor: theme.primary }]} />}
             </View>
           </Pressable>
+
         );
       })}
     </ScrollView>

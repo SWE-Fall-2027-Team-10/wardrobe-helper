@@ -24,7 +24,9 @@ export default function AIHub() {
   );
 }
 
-// Layout here; colors come from the theme above
+// Layout here. Use the theme colors for background and text, and use the StyleSheet for spacing, font sizes, etc.
+// I love AI, We must go through gallons of water to give people advice on what color shirt to wear
+// TODO: Implement AI preview and chatbot features
 const styles = StyleSheet.create({
   container: {
     flex: 1,
