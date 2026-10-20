@@ -10,6 +10,9 @@ type SettingsItem = {
   destructive?: boolean;
 };
 
+// Settings Screen
+// The settings screen is where users can manage their account and app settings. 
+// It provides options for signing out, changing email and password, managing 2FA settings, deleting the account, and changing the app's appearance.
 export default function SettingsScreen() {
   const { signOut } = useAuth();
   const theme = useTheme();
@@ -19,9 +22,11 @@ export default function SettingsScreen() {
   const settingsSections: { title: string; data: SettingsItem[] }[] = [
     { title: 'Account and Security', data: [
       { label: 'Sign Out', onPress: signOut },
-      { label: '2FA Settings', onPress: notYet('2FA Settings') },
+      // TODO: Merge the "Change Email" and "Change Password" and "2FA Settings" into one "Credentials" screen, and implement the backend for those features. 
       { label: 'Change Email', onPress: notYet('Change Email') },
       { label: 'Change Password', onPress: notYet('Change Password') },
+      { label: '2FA Settings', onPress: notYet('2FA Settings') },
+      // TODO: Implement the "Delete Account" feature SAFELY, with a confirmation dialog and a warning that this action is irreversible. This should also delete all user data from the server.
       { label: 'Delete Account', onPress: notYet('Delete Account'), destructive: true },
     ]},
     { title: 'App Settings', data: [
@@ -50,6 +55,8 @@ export default function SettingsScreen() {
   );
 }
 
+// Man I really need to make a global style sheet for this app.
+// Im going to cry if I have to write more stylesheets
 const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 13,
