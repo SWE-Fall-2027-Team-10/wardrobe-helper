@@ -12,7 +12,7 @@ export default function AppearanceScreen() {
     <ScrollView style={{ backgroundColor: theme.background }} contentContainerStyle={styles.content}>
       <Text style={[styles.sectionHeader, { color: theme.textMuted }]}>Theme</Text>
 
-      // Maps over the themes object and creates a Pressable for each theme option. When pressed, it sets the themeName in the context to the selected theme.
+      {/*Maps over the themes object and creates a Pressable for each theme option. When pressed, it sets the themeName in the context to the selected theme.*/}
       {Object.entries(themes).map(([name, option]) => {
         const selected = name === themeName;
         return (

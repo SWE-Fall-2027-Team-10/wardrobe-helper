@@ -10,6 +10,7 @@ echo "Installing backend dependencies..."
 (cd server && npm install)
 
 if [ ! -f server/.env ]; then
+  touch server/.env
   cp server/.env.example server/.env
   echo "Created server/.env. Open it and set DB_USER and DB_PASSWORD."
 fi

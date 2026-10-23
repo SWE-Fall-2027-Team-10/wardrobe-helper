@@ -21,16 +21,16 @@ function MyStack() {
     <Stack.Navigator>
       {user ? (
         <>
-          // Main screen is the tab navigator, which has its own headers for each tab.
-          // You can find the main screens in navigation/MainTabs.tsx. The other screens here that are not in main are stacked on top of the tabs, so they cover the tab bar while open.
+          {/* Main screen is the tab navigator, which has its own headers for each tab. */}
+          {/* You can find the main screens in navigation/MainTabs.tsx. The other screens here that are not in main are stacked on top of the tabs, so they cover the tab bar while open. */}
           <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} /> 
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="Appearance" component={AppearanceScreen} />
         </>
       ) : (
         <>
-          // Seperate stack for logged out users, so they don't see the tab bar or other screens.
-          // The login screen is the first screen, so it will be shown first. The register screen can be opened from the login screen.
+          {/* Seperate stack for logged out users, so they don't see the tab bar or other screens. */}
+          {/* The login screen is the first screen, so it will be shown first. The register screen can be opened from the login screen. */}
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Create Account' }} />
         </>
