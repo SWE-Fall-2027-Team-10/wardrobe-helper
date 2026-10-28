@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS Users (
   date_of_birth  DATE,
   role           VARCHAR(20)  NOT NULL DEFAULT 'user',   -- 'user' or 'admin'
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  verified        BOOLEAN     NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE IF NOT EXISTS User_Profile (
@@ -31,6 +32,15 @@ CREATE TABLE IF NOT EXISTS Sessions (
   session_id     INT AUTO_INCREMENT PRIMARY KEY,
   user_id        INT NOT NULL,
   session_token  VARCHAR(255) NOT NULL UNIQUE,            -- SHA-256 hash of the token given to the app
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at     DATETIME NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS Verification (
+  user_id        INT NOT NULL PRIMARY KEY,
+  verification_code  VARCHAR(255) NOT NULL, 
+  attempts       INT NOT NULL DEFAULT 0,
   created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at     DATETIME NOT NULL,
   FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE

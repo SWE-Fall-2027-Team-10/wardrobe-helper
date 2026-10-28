@@ -87,4 +87,57 @@ router.put('/me', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+const MAX_VERIFY_ATTEMPTS = 5;
+
+// POST /api/auth/verify  (protected)  body: { verification_code }
+router.post('/verify', requireAuth, async (req, res, next) => {
+  try {
+    const { verification_code } = req.body || {};
+    if (!verification_code) return res.status(400).json({ error: 'Verification code is required.' });
+    if (req.user.verified) return res.status(400).json({ error: 'Account is already verified.' });
+
+    const userId = req.user.user_id;
+
+    // Look up by user only. The typed code is checked with bcrypt below, never in SQL.
+    // Expiry is worked out in SQL because db.js returns dates as strings (dateStrings: true).
+    const [rows] = await db.query(
+      'SELECT verification_code, attempts, expires_at <= NOW() AS expired FROM Verification WHERE user_id = ?',
+      [userId]
+    );
+    if (!rows.length) return res.status(400).json({ error: 'No active code. Please request a new one.' });
+    const row = rows[0];
+
+    // 1. Expired: remove it so it can never be used.
+    if (row.expired) {
+      await db.query('DELETE FROM Verification WHERE user_id = ?', [userId]);
+      return res.status(400).json({ error: 'Code expired. Please request a new one.' });
+    }
+
+    // 2. Out of attempts: checked BEFORE comparing, so a correct guess after the limit still fails.
+    if (row.attempts >= MAX_VERIFY_ATTEMPTS) {
+      await db.query('DELETE FROM Verification WHERE user_id = ?', [userId]);
+      return res.status(429).json({ error: 'Too many incorrect attempts. Please request a new code.' });
+    }
+
+    // 3. Compare the typed code against the stored bcrypt hash.
+    const ok = await bcrypt.compare(String(verification_code), row.verification_code);
+    if (!ok) {
+      // attempts = attempts + 1 lets the database do the math instead of trusting our copy.
+      await db.query('UPDATE Verification SET attempts = attempts + 1 WHERE user_id = ?', [userId]);
+      const left = MAX_VERIFY_ATTEMPTS - (row.attempts + 1);
+      if (left <= 0) {
+        await db.query('DELETE FROM Verification WHERE user_id = ?', [userId]);
+        return res.status(429).json({ error: 'Too many incorrect attempts. Please request a new code.' });
+      }
+      return res.status(400).json({ error: `Incorrect code. ${left} attempt(s) left.`, attempts_left: left });
+    }
+
+    // 4. Correct: verify the account and use up the code.
+    await db.query('UPDATE Users SET verified = TRUE WHERE user_id = ?', [userId]);
+    await db.query('DELETE FROM Verification WHERE user_id = ?', [userId]);
+    res.json({ message: 'Account verified.' });
+  } catch (e) { next(e); }
+});
+
+// TODO: Implement password reset functionality (UC-05) and user management for admins (UC-06).
 module.exports = router;

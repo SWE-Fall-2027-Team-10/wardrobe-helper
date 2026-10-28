@@ -21,7 +21,7 @@ async function requireAuth(req, res, next) {
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) return res.status(401).json({ error: 'Not logged in.' });
     const [rows] = await db.query(
-      `SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, s.session_id
+      `SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, u.verified, s.session_id
          FROM Sessions s JOIN Users u ON u.user_id = s.user_id
         WHERE s.session_token = ? AND s.expires_at > NOW()`,
       [sha256(token)]
