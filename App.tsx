@@ -14,34 +14,33 @@ import VerificationScreen from './screens/auth/VerificationScreen';
 
 const Stack = createNativeStackNavigator();
 
-// Logged in: the tab bar, plus screens that open on top of it.
 // Logged out: the login and register screens.
+// Logged in but not verified: only the verification screen.
+// Logged in and verified: the tab bar, plus screens that open on top of it.
+// Changing `user` in AuthContext is what switches between these (no navigate() calls needed).
 function MyStack() {
   const { user } = useAuth();
   return (
     <Stack.Navigator>
       {!user ? (
         <>
-          {/* Main screen is the tab navigator, which has its own headers for each tab. */}
-          {/* You can find the main screens in navigation/MainTabs.tsx. The other screens here that are not in main are stacked on top of the tabs, so they cover the tab bar while open. */}
-          <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} /> 
-          <Stack.Screen name="Settings" component={SettingsScreen} />
-          <Stack.Screen name="Appearance" component={AppearanceScreen} />
-        </>
-      ) : !user.verified ? (
-        <>
-          {/* If the user is logged in but not verified, show the verification screen. */}
-          <Stack.Screen name="Verification" component={VerificationScreen} />
-        </>
-      ) :
-      
-      (
-        <>
           {/* Seperate stack for logged out users, so they don't see the tab bar or other screens. */}
           {/* The login screen is the first screen, so it will be shown first. The register screen can be opened from the login screen. */}
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Create Account' }} />
-          <Stack.Screen name="Verification" component={VerificationScreen} />
+        </>
+      ) : !user.verified ? (
+        <>
+          {/* Logged in but not verified: this is the only screen until /verify succeeds and refreshUser() runs. */}
+          <Stack.Screen name="Verification" component={VerificationScreen} options={{ title: 'Verify Email' }} />
+        </>
+      ) : (
+        <>
+          {/* Main screen is the tab navigator, which has its own headers for each tab. */}
+          {/* You can find the main screens in navigation/MainTabs.tsx. The other screens here that are not in main are stacked on top of the tabs, so they cover the tab bar while open. */}
+          <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
+          <Stack.Screen name="Settings" component={SettingsScreen} />
+          <Stack.Screen name="Appearance" component={AppearanceScreen} />
         </>
       )}
     </Stack.Navigator>

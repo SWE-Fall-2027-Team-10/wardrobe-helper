@@ -1,4 +1,7 @@
-import { useState } from "react";
+// Shown to users who are logged in but haven't verified their email yet (see MyStack in App.tsx).
+// They enter the 6-digit code from their email; once /verify succeeds, refreshUser() reloads the user,
+// user.verified becomes true, and App.tsx switches to the main tabs on its own.
+import { useEffect, useState } from "react";
 import {
 	StyleSheet,
 	Text,
@@ -6,132 +9,218 @@ import {
 	TextInput,
 	ActivityIndicator,
 	View,
+	ScrollView,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, ParamListBase } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../../AuthContext";
 import { useTheme } from "../../themes/ThemeContext";
 import { api, errorMessage } from "../../lib/api";
 
+const RESEND_COOLDOWN_SECONDS = 60; // matches the server's limit in routes/auth.js
+
 export default function VerificationScreen() {
-    const { signOut } = useAuth();
-    const theme = useTheme();
-    const navigation =
-        useNavigation<NativeStackNavigationProp<ParamListBase>>();
+	const { user, signOut, refreshUser } = useAuth();
+	const theme = useTheme();
 
-    const [email, setEmail] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+	const [code, setCode] = useState("");
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState("");
+	const [notice, setNotice] = useState("");
+	const [cooldown, setCooldown] = useState(0); // seconds until "Resend" can be pressed again
 
-    const onSendVerification = async () => {
-        setError("");
-        setLoading(true);
+	// Count the resend cooldown down once per second.
+	useEffect(() => {
+		if (cooldown <= 0) return;
+		const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+		return () => clearTimeout(timer);
+	}, [cooldown]);
 
-        try {
-            await api.sendVerification(email.trim());
-            alert("Verification email sent. Please check your inbox.");
-        } catch (e) {
-            const message = errorMessage(e);
-            console.error("SEND VERIFICATION ERROR:", e);
-            setError(message);
-        } finally {
-            setLoading(false);
-        }
-    };
+	const onVerify = async () => {
+		setError("");
+		setNotice("");
 
-    return (
-        <SafeAreaView
-            style={[styles.container, { backgroundColor: theme.background }]}
-        >
-            <Text style={[styles.title, { color: theme.text }]}>
-                Account Verification, please enter the code sent to your email below.
-            </Text>
-            <Text style={[styles.instructions, { color: theme.text }]}>
-                Please check your email for a verification link. If you haven't received it, you can request a new verification email below.
-            </Text>
-            <TextInput
-                style={[
-                    styles.input,
-                    {
-                        borderColor: theme.border,
-                        backgroundColor: theme.surface,
-                        color: theme.text,
-                    },
-                ]}
-                placeholder="Verification Code"
-                placeholderTextColor={theme.text}
-                autoCapitalize="none"
-                keyboardType="numeric"
-            />
-            {error ? (
-                <Text style={[styles.error, { color: "#d32f2f" }]}>{error}</Text>
-            ) : null}
+		if (code.length !== 6) {
+			setError("Enter the 6-digit code from your email.");
+			return;
+		}
 
-            // TODO: Create a "Verify" button that sends the verification code to the backend for verification. If successful, sign the user in and navigate to the main app. If unsuccessful, show an error message.
+		setLoading(true);
+		try {
+			await api.checkVerification(code);
+			// Reloading the user flips user.verified to true, so App.tsx shows the main tabs.
+			await refreshUser();
+		} catch (e) {
+			setError(errorMessage(e));
+			setCode("");
+		} finally {
+			setLoading(false);
+		}
+	};
 
-            <Pressable
-                style={[styles.button, { backgroundColor: theme.primary }]}
-                onPress={onSendVerification}
-                disabled={loading}
-            >
-                {loading ? (
-                    <ActivityIndicator color={theme.primary} />
-                ) : (
-                    <Text style={[styles.buttonText, { color: theme.primary }]}>
-                        Resend Verification Email
-                    </Text>
-                )}
-            </Pressable>
+	const onResend = async () => {
+		setError("");
+		setNotice("");
+		setLoading(true);
+		try {
+			const { message } = await api.sendVerification();
+			setNotice(message);
+			setCooldown(RESEND_COOLDOWN_SECONDS);
+		} catch (e) {
+			setError(errorMessage(e));
+		} finally {
+			setLoading(false);
+		}
+	};
 
-            <Pressable
-                style={[styles.button, { backgroundColor: theme.primary }]}
-                onPress={() => signOut().then(() => navigation.navigate("Login"))}
-            >
-                <Text style={[styles.buttonText, { color: theme.primary }]}>
-                    Back to Login
-                </Text>
-            </Pressable>
-        </SafeAreaView>
-    );
+	return (
+		<ScrollView
+			style={{ backgroundColor: theme.background }}
+			contentContainerStyle={styles.container}
+			keyboardShouldPersistTaps="handled"
+		>
+			<Text style={[styles.title, { color: theme.text }]}>
+				Check your email
+			</Text>
+			<Text style={[styles.instructions, { color: theme.textMuted }]}>
+				We sent a 6-digit code to {user?.email}. It expires in 15 minutes.
+			</Text>
+
+			<TextInput
+				style={[
+					styles.input,
+					{
+						borderColor: theme.border,
+						backgroundColor: theme.surface,
+						color: theme.text,
+					},
+				]}
+				placeholder="123456"
+				placeholderTextColor={theme.textMuted}
+				keyboardType="number-pad"
+				textContentType="oneTimeCode"
+				autoComplete="one-time-code"
+				maxLength={6}
+				value={code}
+				onChangeText={(text) => setCode(text.replace(/[^0-9]/g, ""))}
+			/>
+
+			{error ? (
+				<View style={styles.errorBox}>
+					<Text style={styles.errorText}>{error}</Text>
+				</View>
+			) : null}
+
+			{notice ? (
+				<View style={styles.noticeBox}>
+					<Text style={styles.noticeText}>{notice}</Text>
+				</View>
+			) : null}
+
+			<Pressable
+				style={[styles.button, { backgroundColor: theme.primary }]}
+				onPress={onVerify}
+				disabled={loading}
+			>
+				<Text style={styles.buttonText}>
+					{loading ? "Please wait..." : "Verify"}
+				</Text>
+			</Pressable>
+
+			<Pressable
+				style={[
+					styles.buttonOutline,
+					{ borderColor: theme.primary, opacity: cooldown > 0 ? 0.5 : 1 },
+				]}
+				onPress={onResend}
+				disabled={loading || cooldown > 0}
+			>
+				<Text style={{ color: theme.primary }}>
+					{cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}
+				</Text>
+			</Pressable>
+
+			{/* Signing out sets user to null, so App.tsx shows the login screen again. */}
+			<Pressable style={styles.linkButton} onPress={signOut} disabled={loading}>
+				<Text style={{ color: theme.textMuted }}>
+					Wrong email? Sign out
+				</Text>
+			</Pressable>
+
+			{loading && (
+				<ActivityIndicator
+					style={{ marginTop: 12 }}
+					color={theme.primary}
+				/>
+			)}
+		</ScrollView>
+	);
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        padding: 20,
-        justifyContent: "center",
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: "bold",
-        marginBottom: 20,
-        textAlign: "center",
-    },
-    instructions: {
-        fontSize: 16,
-        marginBottom: 20,
-        textAlign: "center",
-    },
-    input: {
-        height: 50,
-        borderWidth: 1,
-        borderRadius: 5,
-        paddingHorizontal: 10,
-        marginBottom: 10,
-    },
-    button: {
-        height: 50,
-        borderRadius: 5,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    buttonText: {
-        fontSize: 16,
-        fontWeight: "bold",
-    },
-    error: {
-        marginBottom: 10,
-        textAlign: "center",
-    },
-}); 
+	container: {
+		flexGrow: 1,
+		justifyContent: "center",
+		padding: 24,
+	},
+	title: {
+		fontSize: 24,
+		fontWeight: "bold",
+		marginBottom: 12,
+		textAlign: "center",
+	},
+	instructions: {
+		fontSize: 15,
+		marginBottom: 24,
+		textAlign: "center",
+	},
+	input: {
+		borderWidth: 1,
+		borderRadius: 8,
+		padding: 12,
+		marginBottom: 12,
+		fontSize: 22,
+		letterSpacing: 8,
+		textAlign: "center",
+	},
+	button: {
+		padding: 14,
+		borderRadius: 8,
+		alignItems: "center",
+		marginTop: 8,
+	},
+	buttonText: {
+		color: "#fff",
+		fontWeight: "600",
+	},
+	buttonOutline: {
+		borderWidth: 1,
+		padding: 14,
+		borderRadius: 8,
+		alignItems: "center",
+		marginTop: 12,
+	},
+	linkButton: {
+		padding: 14,
+		alignItems: "center",
+		marginTop: 4,
+	},
+	errorBox: {
+		padding: 12,
+		borderRadius: 8,
+		backgroundColor: "#fee2e2",
+		marginBottom: 12,
+	},
+	errorText: {
+		color: "#991b1b",
+		fontSize: 14,
+	},
+	noticeBox: {
+		padding: 12,
+		borderRadius: 8,
+		backgroundColor: "#dcfce7",
+		marginBottom: 12,
+	},
+	noticeText: {
+		color: "#166534",
+		fontSize: 14,
+	},
+});

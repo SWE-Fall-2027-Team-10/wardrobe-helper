@@ -1,5 +1,7 @@
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const db = require('./db');
+const { sendVerificationEmail } = require('./mailer');
 
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -36,6 +38,7 @@ function requireRole(role) {
   return (req, res, next) => (req.user && req.user.role === role ? next() : res.status(403).json({ error: 'Forbidden.' }));
 }
 
+// Middleware: put after requireAuth on routes that only verified accounts may use.
 function requireVerified(req, res, next) {
   if (req.user && req.user.verified) {
     next();
@@ -44,4 +47,22 @@ function requireVerified(req, res, next) {
   }
 }
 
-module.exports = { createSession, requireAuth, requireRole, requireVerified, sha256 };
+const VERIFY_CODE_MINUTES = 15;
+
+// Makes a new 6-digit code for a user, stores only its bcrypt hash, and emails the code.
+// Replaces any earlier code (one row per user) and resets the attempt counter and send time.
+async function createVerificationCode(userId, email) {
+  // crypto.randomInt is unpredictable, unlike Math.random. padStart keeps leading zeros ("004213").
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  const hash = await bcrypt.hash(code, 10);
+  await db.query(
+    `INSERT INTO Verification (user_id, verification_code, attempts, created_at, expires_at)
+     VALUES (?, ?, 0, NOW(), DATE_ADD(NOW(), INTERVAL ? MINUTE))
+     ON DUPLICATE KEY UPDATE verification_code = VALUES(verification_code), attempts = 0,
+                             created_at = VALUES(created_at), expires_at = VALUES(expires_at)`,
+    [userId, hash, VERIFY_CODE_MINUTES]
+  );
+  await sendVerificationEmail(email, code);
+}
+
+module.exports = { createSession, requireAuth, requireRole, requireVerified, createVerificationCode, sha256 };

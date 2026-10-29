@@ -37,12 +37,14 @@ CREATE TABLE IF NOT EXISTS Sessions (
   FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
 );
 
+-- One pending email-verification code per user (account verification only, for now).
+-- Existing databases: run database/add_verification.sql instead of re-running this file.
 CREATE TABLE IF NOT EXISTS Verification (
-  user_id        INT NOT NULL PRIMARY KEY,
-  verification_code  VARCHAR(255) NOT NULL, 
-  attempts       INT NOT NULL DEFAULT 0,
-  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  expires_at     DATETIME NOT NULL,
+  user_id            INT NOT NULL PRIMARY KEY,
+  verification_code  VARCHAR(255) NOT NULL,        -- bcrypt hash of the 6-digit code; the code itself is only ever in the email
+  attempts           INT NOT NULL DEFAULT 0,       -- wrong guesses so far (max 5)
+  created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- when the code was last sent; used for the 60 s resend cooldown
+  expires_at         DATETIME NOT NULL,            -- 15 minutes after created_at
   FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
 );
 

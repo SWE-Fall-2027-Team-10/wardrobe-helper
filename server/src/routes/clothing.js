@@ -1,8 +1,8 @@
 const express = require("express");
 const db = require("../db");
-const { requireAuth } = require("../auth");
+const { requireAuth, requireVerified } = require("../auth");
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requireVerified); // only verified accounts can use these routes
 const fields = ["name", "category", "color", "size", "brand", "image_url"];
 function validate(body, creating) {
 	if (!body || typeof body !== "object" || Array.isArray(body))

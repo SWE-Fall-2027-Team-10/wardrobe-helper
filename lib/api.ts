@@ -204,16 +204,17 @@ export const api = {
 		}
 	},
 
-	sendVerification: (email: string) =>
+	// Emails the logged-in user a new verification code (the server knows who from the session token).
+	sendVerification: () =>
 		request<{ message: string }>("/auth/send-verification", {
 			method: "POST",
-			body: { email },
 		}),
 
+	// Checks the 6-digit code from the email. On success the account is verified.
 	checkVerification: (code: string) =>
 		request<{ message: string }>("/auth/verify", {
 			method: "POST",
-			body: { code },
+			body: { verification_code: code },
 		}),
 
 	me: () => request<User & Record<string, unknown>>("/auth/me"),

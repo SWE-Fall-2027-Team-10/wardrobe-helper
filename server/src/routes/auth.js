@@ -2,11 +2,11 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
-const { createSession, requireAuth } = require('../auth');
+const { createSession, requireAuth, createVerificationCode } = require('../auth');
 
 const router = express.Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const publicUser = (u) => ({ user_id: u.user_id, first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, verified: u.verified, date_of_birth: u.date_of_birth });
+const publicUser = (u) => ({ user_id: u.user_id, first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, verified: Boolean(u.verified), date_of_birth: u.date_of_birth });
 
 // POST /api/auth/register
 router.post('/register', async (req, res, next) => {
@@ -26,7 +26,15 @@ router.post('/register', async (req, res, next) => {
       [first_name.trim(), last_name.trim(), email.toLowerCase(), hash, date_of_birth || null]
     );
     await db.query('INSERT INTO User_Profile (user_id) VALUES (?)', [result.insertId]);
-    res.status(201).json({ message: 'Account created.', user_id: result.insertId });
+
+    // Send the first verification code. If the email fails, the account still exists and the
+    // user can press "Resend" on the verification screen, so don't fail the whole registration.
+    try {
+      await createVerificationCode(result.insertId, email.toLowerCase());
+    } catch (mailErr) {
+      console.error('Could not send verification email:', mailErr);
+    }
+    res.status(201).json({ message: 'Account created. Check your email for a verification code.', user_id: result.insertId });
   } catch (e) { next(e); }
 });
 
@@ -60,7 +68,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
          FROM Users u LEFT JOIN User_Profile p ON p.user_id = u.user_id WHERE u.user_id = ?`,
       [req.user.user_id]
     );
-    res.json(rows[0]);
+    res.json({ ...rows[0], verified: Boolean(rows[0].verified) }); // MySQL BOOLEAN comes back as 0/1
   } catch (e) { next(e); }
 });
 
@@ -140,24 +148,25 @@ router.post('/verify', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/send-verification', async (req, res, next) => {
+const RESEND_COOLDOWN_SECONDS = 60;
+
+// POST /api/auth/send-verification  (protected, no body)
+// Emails the logged-in user a new code. The user comes from their session, never from the request body,
+// so nobody can trigger emails to someone else's address. Limited to one request per minute.
+router.post('/send-verification', requireAuth, async (req, res, next) => {
   try {
-    const { email } = req.body || {};
-    if (!email) return res.status(400).json({ error: 'Email is required.' });
-    const [rows] = await db.query('SELECT user_id, verified FROM Users WHERE email = ?', [email.toLowerCase()]);
-    if (!rows.length) return res.status(404).json({ error: 'No account with that email.' });
-    const user = rows[0];
-    if (user.verified) return res.status(400).json({ error: 'Account is already verified.' });
+    if (req.user.verified) return res.status(400).json({ error: 'Account is already verified.' });
 
-    // Generate a new code and store it in the database.
-    const code = Math.floor(100000 + Math.random() * 900000); // 6-digit number
-    const hash = await bcrypt.hash(String(code), 10);
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now
-    await db.query(
-      'INSERT INTO Verification (user_id, verification_code, expires_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE verification_code = VALUES(verification_code), expires_at = VALUES(expires_at), attempts = 0',
-      [user.user_id, hash, expiresAt]
+    const [rows] = await db.query(
+      'SELECT TIMESTAMPDIFF(SECOND, created_at, NOW()) AS seconds_ago FROM Verification WHERE user_id = ?',
+      [req.user.user_id]
     );
+    if (rows.length && rows[0].seconds_ago < RESEND_COOLDOWN_SECONDS) {
+      const wait = RESEND_COOLDOWN_SECONDS - rows[0].seconds_ago;
+      return res.status(429).json({ error: `Please wait ${wait} seconds before requesting a new code.`, retry_after: wait });
+    }
 
+    await createVerificationCode(req.user.user_id, req.user.email);
     res.json({ message: 'Verification email sent. Please check your inbox.' });
   } catch (e) { next(e); }
 });
