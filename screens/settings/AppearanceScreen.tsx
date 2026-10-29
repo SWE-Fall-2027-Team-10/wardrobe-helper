@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View, Pressable, ScrollView } from 'react-native';
-import { themes } from '../../theme';
-import { useThemeSettings } from '../../ThemeContext';
+import { themes } from '../../themes/theme';
+import { useThemeSettings } from '../../themes/ThemeContext';
 
 // Capitalizes the theme key for display: 'ocean' -> 'Ocean'
 const displayName = (name: string) => name.charAt(0).toUpperCase() + name.slice(1);

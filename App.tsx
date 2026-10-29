@@ -3,7 +3,7 @@ import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { ThemeProvider, useThemeSettings } from './ThemeContext';
+import { ThemeProvider, useThemeSettings } from './themes/ThemeContext';
 import { AuthProvider, useAuth } from './AuthContext';
 import MainTabs from './navigation/MainTabs';
 import LoginScreen from './screens/auth/LoginScreen';

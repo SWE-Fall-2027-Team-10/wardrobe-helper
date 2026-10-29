@@ -1,4 +1,6 @@
 // Who is logged in, plus sign in / sign out. Any screen can use: const { user, signIn, signOut } = useAuth();
+// This file gives functionality to the AuthContext, which is used by the app to manage user authentication. 
+// It provides the current user, signIn and signOut functions, and checks for a saved session on startup.
 import {
 	createContext,
 	useContext,
@@ -17,6 +19,7 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+// gets the auth token for the user session
 export const useAuth = () => {
 	const auth = useContext(AuthContext);
 	if (!auth) {
@@ -25,6 +28,7 @@ export const useAuth = () => {
 	return auth;
 };
 
+// Provides authentication context to the app
 export function AuthProvider({ children }: { children: ReactNode }) {
 	const [user, setUser] = useState<User | null>(null);
 	const [checkingSession, setCheckingSession] = useState(true);

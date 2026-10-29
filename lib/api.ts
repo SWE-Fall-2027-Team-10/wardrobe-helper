@@ -202,6 +202,12 @@ export const api = {
 		}
 	},
 
+	resendVerification: (email: string) =>
+		request("/auth/resend-verification", {
+			method: "POST",
+			body: { email },
+		}),
+
 	me: () => request<User & Record<string, unknown>>("/auth/me"),
 
 	// Clothing

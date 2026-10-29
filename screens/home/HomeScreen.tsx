@@ -1,9 +1,11 @@
 import { StyleSheet, Text, View, Pressable, ScrollView } from "react-native";
 import { useNavigation, ParamListBase } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useTheme } from "../../ThemeContext";
+import { useTheme } from "../../themes/ThemeContext";
 import { useAuth } from "../../AuthContext";
 
+// Creates shortcut buttons for the biggest features of the app, so users can quickly access them from the home screen. 
+// Each shortcut has a label, description, screen to navigate to, and an emoji for visual appeal.
 const shortcuts = [
 	{
 		label: "Your Clothing",
@@ -30,6 +32,9 @@ const shortcuts = [
 		emoji: "✨",
 	},
 ];
+
+// Home Screen
+// The home screen is the first screen users see when they open the app. It greets them by name and provides quick access to the main features of the app through shortcut buttons.
 export default function HomeScreen() {
 	const theme = useTheme();
 	const { user } = useAuth();

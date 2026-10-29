@@ -10,7 +10,7 @@ import {
 	View,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { useTheme } from "../../ThemeContext";
+import { useTheme } from "../../themes/ThemeContext";
 import {
 	api,
 	Clothing,

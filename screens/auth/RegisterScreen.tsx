@@ -9,7 +9,7 @@ import {
 	View,
 } from "react-native";
 import { useAuth } from "../../AuthContext";
-import { useTheme } from "../../ThemeContext";
+import { useTheme } from "../../themes/ThemeContext";
 import { api, errorMessage } from "../../lib/api";
 
 export default function RegisterScreen() {

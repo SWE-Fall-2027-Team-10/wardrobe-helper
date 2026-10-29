@@ -2,7 +2,7 @@ import { StyleSheet, Text, Pressable, SectionList, Alert } from 'react-native';
 import { useNavigation, ParamListBase } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../AuthContext';
-import { useTheme } from '../../ThemeContext';
+import { useTheme } from '../../themes/ThemeContext';
 
 type SettingsItem = {
   label: string;

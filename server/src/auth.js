@@ -36,4 +36,12 @@ function requireRole(role) {
   return (req, res, next) => (req.user && req.user.role === role ? next() : res.status(403).json({ error: 'Forbidden.' }));
 }
 
-module.exports = { createSession, requireAuth, requireRole, sha256 };
+function requireVerified(req, res, next) {
+  if (req.user && req.user.verified) {
+    next();
+  } else {
+    res.status(403).json({ error: 'Account not verified.' });
+  }
+}
+
+module.exports = { createSession, requireAuth, requireRole, requireVerified, sha256 };

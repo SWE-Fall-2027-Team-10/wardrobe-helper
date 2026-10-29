@@ -139,5 +139,27 @@ router.post('/verify', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.post('/resend-verification', async (req, res, next) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) return res.status(400).json({ error: 'Email is required.' });
+    const [rows] = await db.query('SELECT user_id, verified FROM Users WHERE email = ?', [email.toLowerCase()]);
+    if (!rows.length) return res.status(404).json({ error: 'No account with that email.' });
+    const user = rows[0];
+    if (user.verified) return res.status(400).json({ error: 'Account is already verified.' });
+
+    // Generate a new code and store it in the database.
+    const code = Math.floor(100000 + Math.random() * 900000); // 6-digit number
+    const hash = await bcrypt.hash(String(code), 10);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now
+    await db.query(
+      'INSERT INTO Verification (user_id, verification_code, expires_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE verification_code = VALUES(verification_code), expires_at = VALUES(expires_at), attempts = 0',
+      [user.user_id, hash, expiresAt]
+    );
+
+    res.json({ message: 'Verification email sent. Please check your inbox.' });
+  } catch (e) { next(e); }
+});
+
 // TODO: Implement password reset functionality (UC-05) and user management for admins (UC-06).
 module.exports = router;

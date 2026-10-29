@@ -9,7 +9,7 @@ import { useNavigation, ParamListBase } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 // 4. Your app's shared code: paths depend on how deep the file is
-import { useTheme } from '../../ThemeContext';
+import { useTheme } from '../../themes/ThemeContext';
 import { useAuth } from '../../AuthContext';   // only if it needs the user or signOut
 import { api } from '../../lib/api';           // only if it calls the server
 
