@@ -15,7 +15,7 @@ import { useTheme } from "../../themes/ThemeContext";
 import { api, errorMessage } from "../../lib/api";
 
 export default function VerificationScreen() {
-    const { signIn } = useAuth();
+    const { signOut } = useAuth();
     const theme = useTheme();
     const navigation =
         useNavigation<NativeStackNavigationProp<ParamListBase>>();
@@ -24,16 +24,16 @@ export default function VerificationScreen() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
-    const onResendVerification = async () => {
+    const onSendVerification = async () => {
         setError("");
         setLoading(true);
 
         try {
-            await api.resendVerification(email.trim());
+            await api.sendVerification(email.trim());
             alert("Verification email sent. Please check your inbox.");
         } catch (e) {
             const message = errorMessage(e);
-            console.error("RESEND VERIFICATION ERROR:", e);
+            console.error("SEND VERIFICATION ERROR:", e);
             setError(message);
         } finally {
             setLoading(false);
@@ -67,9 +67,12 @@ export default function VerificationScreen() {
             {error ? (
                 <Text style={[styles.error, { color: "#d32f2f" }]}>{error}</Text>
             ) : null}
+
+            // TODO: Create a "Verify" button that sends the verification code to the backend for verification. If successful, sign the user in and navigate to the main app. If unsuccessful, show an error message.
+
             <Pressable
                 style={[styles.button, { backgroundColor: theme.primary }]}
-                onPress={onResendVerification}
+                onPress={onSendVerification}
                 disabled={loading}
             >
                 {loading ? (
@@ -79,6 +82,15 @@ export default function VerificationScreen() {
                         Resend Verification Email
                     </Text>
                 )}
+            </Pressable>
+
+            <Pressable
+                style={[styles.button, { backgroundColor: theme.primary }]}
+                onPress={() => signOut().then(() => navigation.navigate("Login"))}
+            >
+                <Text style={[styles.buttonText, { color: theme.primary }]}>
+                    Back to Login
+                </Text>
             </Pressable>
         </SafeAreaView>
     );

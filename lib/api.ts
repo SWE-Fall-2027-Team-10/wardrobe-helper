@@ -14,6 +14,8 @@ export type User = {
 	last_name: string;
 	email: string;
 	role: string;
+	verified: boolean;
+	date_of_birth: string | null;
 };
 
 export type Clothing = {
@@ -202,10 +204,16 @@ export const api = {
 		}
 	},
 
-	resendVerification: (email: string) =>
-		request("/auth/resend-verification", {
+	sendVerification: (email: string) =>
+		request<{ message: string }>("/auth/send-verification", {
 			method: "POST",
 			body: { email },
+		}),
+
+	checkVerification: (code: string) =>
+		request<{ message: string }>("/auth/verify", {
+			method: "POST",
+			body: { code },
 		}),
 
 	me: () => request<User & Record<string, unknown>>("/auth/me"),

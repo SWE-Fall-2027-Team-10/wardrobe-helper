@@ -6,7 +6,7 @@ const { createSession, requireAuth } = require('../auth');
 
 const router = express.Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const publicUser = (u) => ({ user_id: u.user_id, first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role });
+const publicUser = (u) => ({ user_id: u.user_id, first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, verified: u.verified, date_of_birth: u.date_of_birth });
 
 // POST /api/auth/register
 router.post('/register', async (req, res, next) => {
@@ -55,7 +55,7 @@ router.post('/logout', requireAuth, async (req, res, next) => {
 router.get('/me', requireAuth, async (req, res, next) => {
   try {
     const [rows] = await db.query(
-      `SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, u.date_of_birth,
+      `SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, u.verified, u.date_of_birth,
               p.height, p.clothing_size, p.preferences, p.profile_image
          FROM Users u LEFT JOIN User_Profile p ON p.user_id = u.user_id WHERE u.user_id = ?`,
       [req.user.user_id]
@@ -90,6 +90,7 @@ router.put('/me', requireAuth, async (req, res, next) => {
 const MAX_VERIFY_ATTEMPTS = 5;
 
 // POST /api/auth/verify  (protected)  body: { verification_code }
+// Checks the code against the stored bcrypt hash, and also checks expiry and attempts. If successful, marks the account as verified and deletes the code.
 router.post('/verify', requireAuth, async (req, res, next) => {
   try {
     const { verification_code } = req.body || {};
@@ -139,7 +140,7 @@ router.post('/verify', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/resend-verification', async (req, res, next) => {
+router.post('/send-verification', async (req, res, next) => {
   try {
     const { email } = req.body || {};
     if (!email) return res.status(400).json({ error: 'Email is required.' });

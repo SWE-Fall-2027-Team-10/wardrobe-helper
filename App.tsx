@@ -10,6 +10,7 @@ import LoginScreen from './screens/auth/LoginScreen';
 import RegisterScreen from './screens/auth/RegisterScreen';
 import SettingsScreen from './screens/settings/SettingsScreen';
 import AppearanceScreen from './screens/settings/AppearanceScreen';
+import VerificationScreen from './screens/auth/VerificationScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -19,7 +20,7 @@ function MyStack() {
   const { user } = useAuth();
   return (
     <Stack.Navigator>
-      {user ? (
+      {!user ? (
         <>
           {/* Main screen is the tab navigator, which has its own headers for each tab. */}
           {/* You can find the main screens in navigation/MainTabs.tsx. The other screens here that are not in main are stacked on top of the tabs, so they cover the tab bar while open. */}
@@ -27,12 +28,20 @@ function MyStack() {
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="Appearance" component={AppearanceScreen} />
         </>
-      ) : (
+      ) : !user.verified ? (
+        <>
+          {/* If the user is logged in but not verified, show the verification screen. */}
+          <Stack.Screen name="Verification" component={VerificationScreen} />
+        </>
+      ) :
+      
+      (
         <>
           {/* Seperate stack for logged out users, so they don't see the tab bar or other screens. */}
           {/* The login screen is the first screen, so it will be shown first. The register screen can be opened from the login screen. */}
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Create Account' }} />
+          <Stack.Screen name="Verification" component={VerificationScreen} />
         </>
       )}
     </Stack.Navigator>
