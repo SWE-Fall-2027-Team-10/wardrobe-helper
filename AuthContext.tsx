@@ -1,4 +1,4 @@
-// Who is logged in, plus sign in / sign out. Any screen can use: const { user, signIn, signOut, refreshUser } = useAuth();
+// Who is logged in, plus sign in / sign out. Any screen can use: const { user, signIn, signOut } = useAuth();
 // This file gives functionality to the AuthContext, which is used by the app to manage user authentication. 
 // It provides the current user, signIn and signOut functions, and checks for a saved session on startup.
 import {
@@ -9,13 +9,12 @@ import {
 	ReactNode,
 } from "react";
 import { View, ActivityIndicator } from "react-native";
-import { api, clearToken, getToken, ApiError, User } from "./lib/api";
+import { api, clearToken, getToken, ApiError, User, errorMessage } from "./lib/api";
 
 type AuthContextValue = {
 	user: User | null; // null = logged out
 	signIn: (email: string, password: string) => Promise<void>;
 	signOut: () => Promise<void>;
-	refreshUser: () => Promise<void>; // re-fetch the user from the server, e.g. after verifying
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -55,12 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		setUser(await api.login(email, password));
 	};
 
-	// Asks the server for the latest user. After /verify succeeds this flips user.verified to true,
-	// which makes App.tsx switch from the verification screen to the main tabs.
-	const refreshUser = async () => {
-		setUser(await api.me());
-	};
-
 	const signOut = async () => {
 		try {
 			await api.logout();
@@ -86,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	}
 
 	return (
-		<AuthContext.Provider value={{ user, signIn, signOut, refreshUser }}>
+		<AuthContext.Provider value={{ user, signIn, signOut }}>
 			{children}
 		</AuthContext.Provider>
 	);
