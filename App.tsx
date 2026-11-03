@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './AuthContext';
 import MainTabs from './navigation/MainTabs';
 import LoginScreen from './screens/auth/LoginScreen';
 import RegisterScreen from './screens/auth/RegisterScreen';
+import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
 import SettingsScreen from './screens/settings/SettingsScreen';
 import AppearanceScreen from './screens/settings/AppearanceScreen';
 import VerificationScreen from './screens/auth/VerificationScreen';
@@ -31,6 +32,7 @@ function MyStack() {
           {/* The login screen is the first screen, so it will be shown first. The register screen can be opened from the login screen. */}
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Create Account' }} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: 'Reset Password' }} />
         </>
       ) : !user.verified ? (
         <>

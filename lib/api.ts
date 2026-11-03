@@ -238,6 +238,20 @@ export const api = {
 			body: { code },
 		}),
 
+	// Forgot password, step 1 (no login needed): emails a reset code if an account uses this address.
+	forgotPassword: (email: string) =>
+		request<{ message: string }>("/auth/password/forgot", {
+			method: "POST",
+			body: { email },
+		}),
+
+	// Forgot password, step 2: the code from that email plus the new password.
+	resetPassword: (email: string, code: string, newPassword: string) =>
+		request<{ message: string }>("/auth/password/reset", {
+			method: "POST",
+			body: { email, code, new_password: newPassword },
+		}),
+
 	me: () => request<User & Record<string, unknown>>("/auth/me"),
 
 	// Permanently deletes the account (server re-checks the password). The session is gone afterwards,

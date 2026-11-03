@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS Sessions (
 -- One-time email codes: at most one pending code per user per purpose.
 --   verify_email  confirm the sign-up address
 --   change_email  confirm a new address; new_email holds it until the code is entered
+--   reset_password  forgot-password code
 -- Existing databases: run database/add_verification.sql and then database/add_code_purposes.sql instead of re-running this file.
 CREATE TABLE IF NOT EXISTS Verification (
   user_id            INT NOT NULL,

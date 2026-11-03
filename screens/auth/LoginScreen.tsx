@@ -105,6 +105,14 @@ export default function LoginScreen() {
 				<Text style={{ color: theme.primary }}>Create Account</Text>
 			</Pressable>
 
+			<Pressable
+				style={styles.linkButton}
+				onPress={() => navigation.navigate("ForgotPassword")}
+				disabled={loading}
+			>
+				<Text style={{ color: theme.textMuted }}>Forgot password?</Text>
+			</Pressable>
+
 			{loading && (
 				<ActivityIndicator
 					style={{ marginTop: 12 }}
@@ -142,6 +150,11 @@ const styles = StyleSheet.create({
 	buttonText: {
 		color: "#fff",
 		fontWeight: "600",
+	},
+	linkButton: {
+		padding: 14,
+		alignItems: "center",
+		marginTop: 4,
 	},
 	buttonOutline: {
 		borderWidth: 1,

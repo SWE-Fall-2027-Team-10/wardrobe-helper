@@ -51,6 +51,7 @@ function requireVerified(req, res, next) {
 // The Verification table holds at most one pending code per user per purpose:
 //   'verify_email'  confirm the address used at sign-up
 //   'change_email'  confirm a new address before it replaces the old one (new_email holds it until then)
+//   'reset_password' forgot-password code sent to the account's address
 // Only the bcrypt hash of a code is stored; the code itself only ever exists in the email.
 const CODE_MINUTES = 15;
 const MAX_CODE_ATTEMPTS = 5;

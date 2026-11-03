@@ -42,6 +42,10 @@ const CODE_EMAILS = {
     subject: 'Confirm your new Wardrobe Helper email',
     text: (code) => `Enter ${code} in the app to make this your Wardrobe Helper email. It expires in 15 minutes.\n\nIf you didn't ask to change your email, you can ignore this email.`,
   },
+  reset_password: {
+    subject: 'Reset your Wardrobe Helper password',
+    text: (code) => `Your password reset code is ${code}. It expires in 15 minutes.\n\nIf you didn't ask to reset your password, you can ignore this email. Your password stays the same.`,
+  },
 };
 
 async function sendCodeEmail(to, code, purpose = 'verify_email') {

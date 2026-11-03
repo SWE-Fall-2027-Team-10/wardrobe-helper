@@ -27,6 +27,8 @@ All JSON. Protected routes need the header `Authorization: Bearer <token>` (the 
 | POST | /api/auth/email/change | Change email | (protected) current_password, new_email. Emails a code to the new address; nothing changes yet. Once per 60 s |
 | POST | /api/auth/email/confirm | Change email | (protected) code. Makes the new address the account's email |
 | PUT | /api/auth/password | Change password | (protected) current_password, new_password (8+ chars). Signs out the user's other devices |
+| POST | /api/auth/password/forgot | Forgot password | email. Emails a reset code if the account exists; same answer either way |
+| POST | /api/auth/password/reset | Forgot password | email, code, new_password (8+ chars). Signs out every device |
 | DELETE | /api/auth/me | Delete account | (protected) password. Deletes the user and all their data (cascades) |
 | GET | /api/auth/me | UC-04 User Management | (protected) account + profile |
 | PUT | /api/auth/me | UC-04 User Management | (protected) any of first_name, last_name, date_of_birth, height, clothing_size, preferences, profile_image |
@@ -48,4 +50,4 @@ Registering emails a 6-digit code (also sent again by `/api/auth/send-verificati
 
 In development, leave `SMTP_HOST` empty in `.env`: no real email is sent, and the server log prints the code and a link to view the email on Ethereal. Databases created before this feature need `database/add_verification.sql` run once.
 
-The `Verification` table holds one pending code per user per `purpose` (`verify_email`, `change_email`). All codes share the same rules in `checkCode` (`src/auth.js`): 15-minute expiry, 5 attempts, one new code per minute. Databases from before purposes existed need `database/add_code_purposes.sql` run once.
+The `Verification` table holds one pending code per user per `purpose` (`verify_email`, `change_email`, `reset_password`). All codes share the same rules in `checkCode` (`src/auth.js`): 15-minute expiry, 5 attempts, one new code per minute. Databases from before purposes existed need `database/add_code_purposes.sql` run once.

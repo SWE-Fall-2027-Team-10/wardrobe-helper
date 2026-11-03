@@ -182,6 +182,57 @@ router.post('/email/confirm', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// POST /api/auth/password/forgot  body: { email }   (no login needed)
+// Emails a reset code if an account uses this address. The answer is the same whether or not it does,
+// and a request inside the 60 s cooldown is quietly skipped, so nobody can use this route to find out
+// which emails have accounts.
+const FORGOT_REPLY = { message: 'If an account uses that email, we sent it a code.' };
+router.post('/password/forgot', async (req, res, next) => {
+  try {
+    const email = String((req.body || {}).email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
+
+    const [rows] = await db.query('SELECT user_id FROM Users WHERE email = ?', [email]);
+    if (rows.length && !(await codeCooldown(rows[0].user_id, 'reset_password'))) {
+      try {
+        await createCode(rows[0].user_id, email, 'reset_password');
+      } catch (mailErr) {
+        console.error('Could not send password reset email:', mailErr); // still give the same answer
+      }
+    }
+    res.json(FORGOT_REPLY);
+  } catch (e) { next(e); }
+});
+
+// POST /api/auth/password/reset  body: { email, code, new_password }   (no login needed)
+// Sets a new password if the code matches, then signs out every device.
+// The code went to the account's email, so this also proves the user owns it: the account counts as verified.
+router.post('/password/reset', async (req, res, next) => {
+  try {
+    const { code, new_password } = req.body || {};
+    const email = String((req.body || {}).email || '').trim().toLowerCase();
+    if (!email || !code || !new_password)
+      return res.status(400).json({ error: 'Email, code, and new password are required.' });
+    // Check the password BEFORE the code, so a too-short password doesn't use up a correct code.
+    if (typeof new_password !== 'string' || new_password.length < MIN_PASSWORD_LENGTH)
+      return res.status(400).json({ error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
+
+    const [rows] = await db.query('SELECT user_id FROM Users WHERE email = ?', [email]);
+    // No such account looks exactly like "no code was requested".
+    if (!rows.length) return res.status(400).json({ error: 'No active code. Please request a new one.' });
+    const userId = rows[0].user_id;
+
+    const result = await checkCode(userId, 'reset_password', code);
+    if (!result.ok) return res.status(result.status).json(result.body);
+
+    const hash = await bcrypt.hash(new_password, 10);
+    await db.query('UPDATE Users SET password_hash = ?, verified = TRUE WHERE user_id = ?', [hash, userId]);
+    await db.query('DELETE FROM Sessions WHERE user_id = ?', [userId]);
+    await db.query("DELETE FROM Verification WHERE user_id = ? AND purpose = 'verify_email'", [userId]); // no longer needed
+    res.json({ message: 'Password reset. You can log in with your new password.' });
+  } catch (e) { next(e); }
+});
+
 // DELETE /api/auth/me  (protected)  body: { password }
 // Permanently deletes the account after re-checking the password. Every table that references Users uses
 // ON DELETE CASCADE, so the profile, sessions, codes, clothing, outfits, favorites and shares go with it.
