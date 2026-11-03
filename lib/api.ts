@@ -15,6 +15,7 @@ export type User = {
 	email: string;
 	role: string;
 	verified: boolean;
+	two_factor_enabled: boolean;
 	date_of_birth: string | null;
 };
 
@@ -180,18 +181,29 @@ export const api = {
 			body: input,
 		}),
 
-	login: async (email: string, password: string): Promise<User> => {
-		const { token, user } = await request<{
-			token: string;
-			user: User;
-		}>("/auth/login", {
+	// Logs in and stores the session token securely on the device.
+	// With two-factor sign-in on, the first call (no code) returns { twoFactorRequired: true, message }
+	// and the server emails a code; call again with the same email + password and that code.
+	login: async (
+		email: string,
+		password: string,
+		code?: string,
+	): Promise<{ user: User } | { twoFactorRequired: true; message: string }> => {
+		const data = await request<
+			| { token: string; user: User }
+			| { two_factor_required: true; message: string }
+		>("/auth/login", {
 			method: "POST",
-			body: { email, password },
+			body: code ? { email, password, code } : { email, password },
 		});
 
-		await saveToken(token);
+		if ("two_factor_required" in data) {
+			return { twoFactorRequired: true, message: data.message };
+		}
 
-		return user;
+		await saveToken(data.token);
+
+		return { user: data.user };
 	},
 
 	logout: async (): Promise<void> => {
@@ -250,6 +262,13 @@ export const api = {
 		request<{ message: string }>("/auth/password/reset", {
 			method: "POST",
 			body: { email, code, new_password: newPassword },
+		}),
+
+	// Turns two-factor sign-in (an emailed code at every login) on or off. Needs the password.
+	setTwoFactor: (enabled: boolean, currentPassword: string) =>
+		request<{ message: string; two_factor_enabled: boolean }>("/auth/2fa", {
+			method: "PUT",
+			body: { enabled, current_password: currentPassword },
 		}),
 
 	me: () => request<User & Record<string, unknown>>("/auth/me"),

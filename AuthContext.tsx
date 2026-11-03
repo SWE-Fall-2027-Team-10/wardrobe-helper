@@ -13,7 +13,9 @@ import { api, clearToken, getToken, ApiError, User, errorMessage } from "./lib/a
 
 type AuthContextValue = {
 	user: User | null; // null = logged out
-	signIn: (email: string, password: string) => Promise<void>;
+	// Resolves to a message (and stays logged out) when two-factor sign-in needs the emailed code:
+	// call again with the code. Resolves to null once logged in.
+	signIn: (email: string, password: string, code?: string) => Promise<string | null>;
 	signOut: () => Promise<void>;
 	refreshUser: () => Promise<void>; // re-fetch the user from the server, e.g. after verifying
 	deleteAccount: (password: string) => Promise<void>; // deletes the account, then shows the login screen
@@ -52,8 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		})();
 	}, []);
 
-	const signIn = async (email: string, password: string) => {
-		setUser(await api.login(email, password));
+	const signIn = async (email: string, password: string, code?: string) => {
+		const result = await api.login(email, password, code);
+		if ("twoFactorRequired" in result) return result.message;
+		setUser(result.user);
+		return null;
 	};
 
 	// Asks the server for the latest user. VerificationScreen calls this after /verify succeeds:

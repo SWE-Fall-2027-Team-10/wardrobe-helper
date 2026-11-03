@@ -15,6 +15,7 @@ import VerificationScreen from './screens/auth/VerificationScreen';
 import ChangePasswordScreen from './screens/settings/ChangePasswordScreen';
 import DeleteAccountScreen from './screens/settings/DeleteAccountScreen';
 import ChangeEmailScreen from './screens/settings/ChangeEmailScreen';
+import TwoFactorScreen from './screens/settings/TwoFactorScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -48,6 +49,7 @@ function MyStack() {
           <Stack.Screen name="Appearance" component={AppearanceScreen} />
           <Stack.Screen name="ChangeEmail" component={ChangeEmailScreen} options={{ title: 'Change Email' }} />
           <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Change Password' }} />
+          <Stack.Screen name="TwoFactor" component={TwoFactorScreen} options={{ title: 'Two-Factor Sign-In' }} />
           <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} options={{ title: 'Delete Account' }} />
         </>
       )}

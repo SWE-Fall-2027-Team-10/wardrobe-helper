@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS Users (
   role           VARCHAR(20)  NOT NULL DEFAULT 'user',   -- 'user' or 'admin'
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  verified        BOOLEAN     NOT NULL DEFAULT FALSE
+  verified        BOOLEAN     NOT NULL DEFAULT FALSE,
+  two_factor_enabled BOOLEAN  NOT NULL DEFAULT FALSE   -- when on, login also needs a code emailed to the user
 );
 
 CREATE TABLE IF NOT EXISTS User_Profile (
@@ -41,7 +42,8 @@ CREATE TABLE IF NOT EXISTS Sessions (
 --   verify_email  confirm the sign-up address
 --   change_email  confirm a new address; new_email holds it until the code is entered
 --   reset_password  forgot-password code
--- Existing databases: run database/add_verification.sql and then database/add_code_purposes.sql instead of re-running this file.
+--   login_2fa     sign-in code when two_factor_enabled is on
+-- Existing databases: run database/add_verification.sql, add_code_purposes.sql and add_two_factor.sql (in that order, skipping any already run) instead of re-running this file.
 CREATE TABLE IF NOT EXISTS Verification (
   user_id            INT NOT NULL,
   purpose            VARCHAR(20) NOT NULL DEFAULT 'verify_email',

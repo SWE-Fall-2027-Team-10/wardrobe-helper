@@ -1,4 +1,4 @@
-import { StyleSheet, Text, Pressable, SectionList, Alert } from 'react-native';
+import { StyleSheet, Text, Pressable, SectionList } from 'react-native';
 import { useNavigation, ParamListBase } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../AuthContext';
@@ -17,7 +17,6 @@ export default function SettingsScreen() {
   const { signOut } = useAuth();
   const theme = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
-  const notYet = (label: string) => () => Alert.alert(label, 'This feature is not implemented yet.');
 
   const settingsSections: { title: string; data: SettingsItem[] }[] = [
     { title: 'Account and Security', data: [
@@ -25,7 +24,7 @@ export default function SettingsScreen() {
       // TODO: Merge the "Change Email" and "Change Password" and "2FA Settings" into one "Credentials" screen, and implement the backend for those features. 
       { label: 'Change Email', onPress: () => navigation.navigate('ChangeEmail') },
       { label: 'Change Password', onPress: () => navigation.navigate('ChangePassword') },
-      { label: '2FA Settings', onPress: notYet('2FA Settings') },
+      { label: '2FA Settings', onPress: () => navigation.navigate('TwoFactor') },
       { label: 'Delete Account', onPress: () => navigation.navigate('DeleteAccount'), destructive: true },
     ]},
     { title: 'App Settings', data: [

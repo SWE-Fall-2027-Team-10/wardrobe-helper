@@ -24,23 +24,46 @@ export default function LoginScreen() {
 	const [password, setPassword] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState("");
+	// Two-factor sign-in: after a correct password the server emails a code and we ask for it here.
+	const [needsCode, setNeedsCode] = useState(false);
+	const [code, setCode] = useState("");
+	const [notice, setNotice] = useState("");
 
-	const onSignIn = async () => {
-		console.log("SIGN IN BUTTON CLICKED");
+	// Without a code: email + password. With needsCode: the same plus the emailed code.
+	// `withCode = false` asks the server to send a new code (used by "Resend code").
+	const onSignIn = async (withCode = needsCode) => {
 		setError("");
+		if (withCode && code.length !== 6) {
+			setError("Enter the 6-digit code from your email.");
+			return;
+		}
 		setLoading(true);
 
 		try {
-			console.log("Starting login request...");
-			await signIn(email.trim(), password);
-			console.log("Login successful");
+			const message = await signIn(email.trim(), password, withCode ? code : undefined);
+			if (message) {
+				// Password was right, and the account has two-factor sign-in on: show the code box.
+				setNeedsCode(true);
+				setNotice(message);
+				setCode("");
+			}
+			// Otherwise the user is set and the navigator switches screens on its own.
 		} catch (e) {
 			const message = errorMessage(e);
 			console.error("LOGIN ERROR:", e);
 			setError(message);
+			setCode("");
 		} finally {
 			setLoading(false);
 		}
+	};
+
+	// Leave the code step, e.g. to fix a typo in the email.
+	const cancelCode = () => {
+		setNeedsCode(false);
+		setCode("");
+		setNotice("");
+		setError("");
 	};
 
 	const inputStyle = [
@@ -60,26 +83,47 @@ export default function LoginScreen() {
 				Wardrobe Helper
 			</Text>
 
-			<TextInput
-				style={inputStyle}
-				placeholder="Email"
-				placeholderTextColor={theme.textMuted}
-				autoCapitalize="none"
-				autoComplete="email"
-				keyboardType="email-address"
-				value={email}
-				onChangeText={setEmail}
-			/>
+			{!needsCode ? (
+				<>
+					<TextInput
+						style={inputStyle}
+						placeholder="Email"
+						placeholderTextColor={theme.textMuted}
+						autoCapitalize="none"
+						autoComplete="email"
+						keyboardType="email-address"
+						value={email}
+						onChangeText={setEmail}
+					/>
 
-			<TextInput
-				style={inputStyle}
-				placeholder="Password"
-				placeholderTextColor={theme.textMuted}
-				secureTextEntry
-				autoComplete="password"
-				value={password}
-				onChangeText={setPassword}
-			/>
+					<TextInput
+						style={inputStyle}
+						placeholder="Password"
+						placeholderTextColor={theme.textMuted}
+						secureTextEntry
+						autoComplete="password"
+						value={password}
+						onChangeText={setPassword}
+					/>
+				</>
+			) : (
+				<>
+					<View style={styles.noticeBox}>
+						<Text style={styles.noticeText}>{notice}</Text>
+					</View>
+					<TextInput
+						style={[inputStyle, styles.codeInput]}
+						placeholder="123456"
+						placeholderTextColor={theme.textMuted}
+						keyboardType="number-pad"
+						textContentType="oneTimeCode"
+						autoComplete="one-time-code"
+						maxLength={6}
+						value={code}
+						onChangeText={(text) => setCode(text.replace(/[^0-9]/g, ""))}
+					/>
+				</>
+			)}
 
 			{error ? (
 				<View style={styles.errorBox}>
@@ -89,29 +133,48 @@ export default function LoginScreen() {
 
 			<Pressable
 				style={[styles.button, { backgroundColor: theme.primary }]}
-				onPress={onSignIn}
+				onPress={() => onSignIn()}
 				disabled={loading}
 			>
 				<Text style={styles.buttonText}>
-					{loading ? "Signing In..." : "Sign In"}
+					{loading ? "Signing In..." : needsCode ? "Verify Code" : "Sign In"}
 				</Text>
 			</Pressable>
 
-			<Pressable
-				style={[styles.buttonOutline, { borderColor: theme.primary }]}
-				onPress={() => navigation.navigate("Register")}
-				disabled={loading}
-			>
-				<Text style={{ color: theme.primary }}>Create Account</Text>
-			</Pressable>
+			{needsCode && (
+				<>
+					<Pressable
+						style={[styles.buttonOutline, { borderColor: theme.primary }]}
+						onPress={() => onSignIn(false)}
+						disabled={loading}
+					>
+						<Text style={{ color: theme.primary }}>Resend code</Text>
+					</Pressable>
+					<Pressable style={styles.linkButton} onPress={cancelCode} disabled={loading}>
+						<Text style={{ color: theme.textMuted }}>Back</Text>
+					</Pressable>
+				</>
+			)}
 
-			<Pressable
-				style={styles.linkButton}
-				onPress={() => navigation.navigate("ForgotPassword")}
-				disabled={loading}
-			>
-				<Text style={{ color: theme.textMuted }}>Forgot password?</Text>
-			</Pressable>
+			{!needsCode && (
+				<>
+					<Pressable
+						style={[styles.buttonOutline, { borderColor: theme.primary }]}
+						onPress={() => navigation.navigate("Register")}
+						disabled={loading}
+					>
+						<Text style={{ color: theme.primary }}>Create Account</Text>
+					</Pressable>
+
+					<Pressable
+						style={styles.linkButton}
+						onPress={() => navigation.navigate("ForgotPassword")}
+						disabled={loading}
+					>
+						<Text style={{ color: theme.textMuted }}>Forgot password?</Text>
+					</Pressable>
+				</>
+			)}
 
 			{loading && (
 				<ActivityIndicator
@@ -150,6 +213,21 @@ const styles = StyleSheet.create({
 	buttonText: {
 		color: "#fff",
 		fontWeight: "600",
+	},
+	codeInput: {
+		fontSize: 22,
+		letterSpacing: 8,
+		textAlign: "center",
+	},
+	noticeBox: {
+		padding: 12,
+		borderRadius: 8,
+		backgroundColor: "#dcfce7",
+		marginBottom: 12,
+	},
+	noticeText: {
+		color: "#166534",
+		fontSize: 14,
 	},
 	linkButton: {
 		padding: 14,

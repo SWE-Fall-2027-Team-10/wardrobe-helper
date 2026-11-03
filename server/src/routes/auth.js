@@ -7,7 +7,7 @@ const { createSession, requireAuth, createCode, createVerificationCode, codeCool
 const router = express.Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
-const publicUser = (u) => ({ user_id: u.user_id, first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, verified: Boolean(u.verified), date_of_birth: u.date_of_birth });
+const publicUser = (u) => ({ user_id: u.user_id, first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, verified: Boolean(u.verified), two_factor_enabled: Boolean(u.two_factor_enabled), date_of_birth: u.date_of_birth });
 
 // POST /api/auth/register
 router.post('/register', async (req, res, next) => {
@@ -39,16 +39,39 @@ router.post('/register', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// POST /api/auth/login
+// POST /api/auth/login  body: { email, password, code? }
+// With 2FA off: correct email + password -> { token, user }.
+// With 2FA on: the first call (no code) emails a 'login_2fa' code and answers { two_factor_required: true }
+// with no token. The app then sends email + password + code; only a matching code creates a session.
+// The password is checked on both calls, so a code alone is never enough.
 router.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = req.body || {};
+    const { email, password, code } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
-    const [rows] = await db.query('SELECT * FROM Users WHERE email = ?', [email.toLowerCase()]);
-    const ok = rows.length && (await bcrypt.compare(password, rows[0].password_hash));
+    const [rows] = await db.query('SELECT * FROM Users WHERE email = ?', [String(email).trim().toLowerCase()]);
+    const ok = rows.length && (await bcrypt.compare(String(password), rows[0].password_hash));
     if (!ok) return res.status(401).json({ error: 'Incorrect email or password.' });
-    const token = await createSession(rows[0].user_id);
-    res.json({ token, user: publicUser(rows[0]) });
+    const user = rows[0];
+
+    if (user.two_factor_enabled) {
+      if (!code) {
+        // Send a code, unless one went out less than a minute ago (then the user should use that one).
+        const wait = await codeCooldown(user.user_id, 'login_2fa');
+        if (!wait) await createCode(user.user_id, user.email, 'login_2fa');
+        return res.json({
+          two_factor_required: true,
+          message: wait
+            ? `We already sent a code to ${user.email}. You can get a new one in ${wait} seconds.`
+            : `We sent a sign-in code to ${user.email}.`,
+          retry_after: wait || 60,
+        });
+      }
+      const result = await checkCode(user.user_id, 'login_2fa', code);
+      if (!result.ok) return res.status(result.status).json(result.body);
+    }
+
+    const token = await createSession(user.user_id);
+    res.json({ token, user: publicUser(user) });
   } catch (e) { next(e); }
 });
 
@@ -64,12 +87,13 @@ router.post('/logout', requireAuth, async (req, res, next) => {
 router.get('/me', requireAuth, async (req, res, next) => {
   try {
     const [rows] = await db.query(
-      `SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, u.verified, u.date_of_birth,
+      `SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, u.verified, u.two_factor_enabled, u.date_of_birth,
               p.height, p.clothing_size, p.preferences, p.profile_image
          FROM Users u LEFT JOIN User_Profile p ON p.user_id = u.user_id WHERE u.user_id = ?`,
       [req.user.user_id]
     );
-    res.json({ ...rows[0], verified: Boolean(rows[0].verified) }); // MySQL BOOLEAN comes back as 0/1
+    // MySQL BOOLEAN comes back as 0/1
+    res.json({ ...rows[0], verified: Boolean(rows[0].verified), two_factor_enabled: Boolean(rows[0].two_factor_enabled) });
   } catch (e) { next(e); }
 });
 
@@ -230,6 +254,29 @@ router.post('/password/reset', async (req, res, next) => {
     await db.query('DELETE FROM Sessions WHERE user_id = ?', [userId]);
     await db.query("DELETE FROM Verification WHERE user_id = ? AND purpose = 'verify_email'", [userId]); // no longer needed
     res.json({ message: 'Password reset. You can log in with your new password.' });
+  } catch (e) { next(e); }
+});
+
+// PUT /api/auth/2fa  (protected)  body: { enabled: true | false, current_password }
+// Turns sign-in codes on or off. Needs the password, so someone holding an unlocked phone can't switch it off.
+// Only for verified accounts: the codes go to the account's email, so it has to be a confirmed address.
+router.put('/2fa', requireAuth, async (req, res, next) => {
+  try {
+    const { enabled, current_password } = req.body || {};
+    if (typeof enabled !== 'boolean' || !current_password)
+      return res.status(400).json({ error: 'enabled (true or false) and current password are required.' });
+    if (!req.user.verified) return res.status(403).json({ error: 'Verify your email before turning on two-factor sign-in.' });
+
+    const [rows] = await db.query('SELECT password_hash FROM Users WHERE user_id = ?', [req.user.user_id]);
+    if (!(await bcrypt.compare(String(current_password), rows[0].password_hash)))
+      return res.status(400).json({ error: 'Current password is incorrect.' }); // 400, not 401: see PUT /password
+
+    await db.query('UPDATE Users SET two_factor_enabled = ? WHERE user_id = ?', [enabled, req.user.user_id]);
+    if (!enabled) await db.query("DELETE FROM Verification WHERE user_id = ? AND purpose = 'login_2fa'", [req.user.user_id]);
+    res.json({
+      message: enabled ? 'Two-factor sign-in is on.' : 'Two-factor sign-in is off.',
+      two_factor_enabled: enabled,
+    });
   } catch (e) { next(e); }
 });
 

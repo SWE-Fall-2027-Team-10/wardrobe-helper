@@ -46,6 +46,10 @@ const CODE_EMAILS = {
     subject: 'Reset your Wardrobe Helper password',
     text: (code) => `Your password reset code is ${code}. It expires in 15 minutes.\n\nIf you didn't ask to reset your password, you can ignore this email. Your password stays the same.`,
   },
+  login_2fa: {
+    subject: 'Your Wardrobe Helper sign-in code',
+    text: (code) => `Your sign-in code is ${code}. It expires in 15 minutes.\n\nIf you didn't just try to sign in, someone may know your password. Change it in Settings.`,
+  },
 };
 
 async function sendCodeEmail(to, code, purpose = 'verify_email') {
