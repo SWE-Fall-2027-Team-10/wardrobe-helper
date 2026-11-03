@@ -55,7 +55,7 @@ export default function ChangePasswordScreen() {
 		setLoading(true);
 		try {
 			await api.changePassword(currentPassword, newPassword);
-			Alert.alert("Password changed", "Your password has been updated.");
+			Alert.alert("Password changed", "Your password has been updated. Any other devices have been signed out.");
 			navigation.goBack();
 		} catch (e) {
 			setError(errorMessage(e));

@@ -6,6 +6,7 @@ const { createSession, requireAuth, createVerificationCode } = require('../auth'
 
 const router = express.Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 8;
 const publicUser = (u) => ({ user_id: u.user_id, first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, verified: Boolean(u.verified), date_of_birth: u.date_of_birth });
 
 // POST /api/auth/register
@@ -15,7 +16,7 @@ router.post('/register', async (req, res, next) => {
     if (!first_name || !last_name || !email || !password)
       return res.status(400).json({ error: 'First name, last name, email, and password are required.' });
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Invalid email address.' });
-    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    if (password.length < MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
 
     const [dup] = await db.query('SELECT user_id FROM Users WHERE email = ?', [email.toLowerCase()]);
     if (dup.length) return res.status(409).json({ error: 'An account with that email already exists.' });
@@ -171,6 +172,32 @@ router.post('/send-verification', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// PUT /api/auth/password  (protected)  body: { current_password, new_password }
+// Changes the password after re-checking the current one, then signs out every OTHER device.
+// A wrong current password answers 400, not 401: the app treats 401 as "session over" and would log the user out.
+router.put('/password', requireAuth, async (req, res, next) => {
+  try {
+    const { current_password, new_password } = req.body || {};
+    if (!current_password || !new_password)
+      return res.status(400).json({ error: 'Current password and new password are required.' });
+    if (typeof new_password !== 'string' || new_password.length < MIN_PASSWORD_LENGTH)
+      return res.status(400).json({ error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
+    if (new_password === current_password)
+      return res.status(400).json({ error: 'New password must be different from your current one.' });
+
+    const userId = req.user.user_id;
+    const [rows] = await db.query('SELECT password_hash FROM Users WHERE user_id = ?', [userId]);
+    if (!(await bcrypt.compare(String(current_password), rows[0].password_hash)))
+      return res.status(400).json({ error: 'Current password is incorrect.' });
+
+    const hash = await bcrypt.hash(new_password, 10);
+    await db.query('UPDATE Users SET password_hash = ? WHERE user_id = ?', [hash, userId]);
+    // Anyone else logged in as this user (maybe the reason for the change) loses access; this device stays logged in.
+    await db.query('DELETE FROM Sessions WHERE user_id = ? AND session_id <> ?', [userId, req.user.session_id]);
+    res.json({ message: 'Password updated.' });
+  } catch (e) { next(e); }
+});
+
 // TODO: Implement password reset functionality (UC-05) and user management for admins (UC-06).
 
 router.put('/email', requireAuth, async (req, res, next) => {
@@ -189,24 +216,5 @@ router.put('/email', requireAuth, async (req, res, next) => {
     res.json({ message: 'Email updated successfully.' });
   } catch (e) { next(e); }
 });
-
-router.put('/password', requireAuth, async (req, res, next) => {
-  try {
-    const { current_password, new_password } = req.body;
-    const userId = req.user.user_id;
-
-    const [rows] = await db.query('SELECT * FROM Users WHERE user_id = ?', [userId]);
-    if (!rows.length) return res.status(404).json({ error: 'User not found.' });
-    const user = rows[0];
-
-    const ok = await bcrypt.compare(current_password, user.password_hash);
-    if (!ok) return res.status(400).json({ error: 'Current password is incorrect.' });
-
-    const hashedPassword = await bcrypt.hash(new_password, 10);
-    await db.query('UPDATE Users SET password_hash = ? WHERE user_id = ?', [hashedPassword, userId]);
-    res.json({ message: 'Password updated successfully.' });
-  } catch (e) { next(e); }
-});
-
 
 module.exports = router;
