@@ -232,6 +232,16 @@ export const api = {
 	
 	me: () => request<User & Record<string, unknown>>("/auth/me"),
 
+	// Permanently deletes the account (server re-checks the password). The session is gone afterwards,
+	// so the saved token is forgotten too. Call this through useAuth().deleteAccount so the app logs out.
+	deleteAccount: async (password: string): Promise<void> => {
+		await request<{ message: string }>("/auth/me", {
+			method: "DELETE",
+			body: { password },
+		});
+		await clearToken();
+	},
+
 	// Clothing
 
 	clothing: {

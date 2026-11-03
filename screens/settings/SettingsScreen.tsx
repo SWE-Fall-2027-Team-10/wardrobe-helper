@@ -26,8 +26,7 @@ export default function SettingsScreen() {
       { label: 'Change Email', onPress: notYet('Change Email') },
       { label: 'Change Password', onPress: () => navigation.navigate('ChangePassword') },
       { label: '2FA Settings', onPress: notYet('2FA Settings') },
-      // TODO: Implement the "Delete Account" feature SAFELY, with a confirmation dialog and a warning that this action is irreversible. This should also delete all user data from the server.
-      { label: 'Delete Account', onPress: notYet('Delete Account'), destructive: true },
+      { label: 'Delete Account', onPress: () => navigation.navigate('DeleteAccount'), destructive: true },
     ]},
     { title: 'App Settings', data: [
       { label: 'Appearance', onPress: () => navigation.navigate('Appearance') },

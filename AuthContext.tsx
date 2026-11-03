@@ -16,6 +16,7 @@ type AuthContextValue = {
 	signIn: (email: string, password: string) => Promise<void>;
 	signOut: () => Promise<void>;
 	refreshUser: () => Promise<void>; // re-fetch the user from the server, e.g. after verifying
+	deleteAccount: (password: string) => Promise<void>; // deletes the account, then shows the login screen
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -70,6 +71,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		setUser(null);
 	};
 
+	// Throws (and keeps the user logged in) if the server refuses, e.g. a wrong password.
+	const deleteAccount = async (password: string) => {
+		await api.deleteAccount(password);
+		setUser(null);
+	};
+
 	if (checkingSession) {
 		// Avoids flashing the login screen while the saved session is checked
 		return (
@@ -86,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	}
 
 	return (
-		<AuthContext.Provider value={{ user, signIn, signOut, refreshUser }}>
+		<AuthContext.Provider value={{ user, signIn, signOut, refreshUser, deleteAccount }}>
 			{children}
 		</AuthContext.Provider>
 	);

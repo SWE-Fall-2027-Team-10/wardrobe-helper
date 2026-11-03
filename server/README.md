@@ -25,6 +25,7 @@ All JSON. Protected routes need the header `Authorization: Bearer <token>` (the 
 | POST | /api/auth/verify | Email verification | (protected) verification_code -> marks the account verified. 5 tries, codes last 15 min |
 | POST | /api/auth/send-verification | Email verification | (protected, no body) emails a new code; once per 60 s |
 | PUT | /api/auth/password | Change password | (protected) current_password, new_password (8+ chars). Signs out the user's other devices |
+| DELETE | /api/auth/me | Delete account | (protected) password. Deletes the user and all their data (cascades) |
 | GET | /api/auth/me | UC-04 User Management | (protected) account + profile |
 | PUT | /api/auth/me | UC-04 User Management | (protected) any of first_name, last_name, date_of_birth, height, clothing_size, preferences, profile_image |
 | POST | /api/clothing | UC-05 Upload Clothing | (protected) name, category required; color, size, brand, image_url |

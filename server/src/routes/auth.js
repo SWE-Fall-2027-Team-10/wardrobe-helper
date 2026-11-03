@@ -172,6 +172,23 @@ router.post('/send-verification', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// DELETE /api/auth/me  (protected)  body: { password }
+// Permanently deletes the account after re-checking the password. Every table that references Users uses
+// ON DELETE CASCADE, so the profile, sessions, codes, clothing, outfits, favorites and shares go with it.
+router.delete('/me', requireAuth, async (req, res, next) => {
+  try {
+    const { password } = req.body || {};
+    if (!password) return res.status(400).json({ error: 'Password is required to delete your account.' });
+
+    const [rows] = await db.query('SELECT password_hash FROM Users WHERE user_id = ?', [req.user.user_id]);
+    if (!(await bcrypt.compare(String(password), rows[0].password_hash)))
+      return res.status(400).json({ error: 'Password is incorrect.' }); // 400, not 401: see PUT /password
+
+    await db.query('DELETE FROM Users WHERE user_id = ?', [req.user.user_id]);
+    res.json({ message: 'Account deleted.' });
+  } catch (e) { next(e); }
+});
+
 // PUT /api/auth/password  (protected)  body: { current_password, new_password }
 // Changes the password after re-checking the current one, then signs out every OTHER device.
 // A wrong current password answers 400, not 401: the app treats 401 as "session over" and would log the user out.
