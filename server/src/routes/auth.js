@@ -2,7 +2,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
-const { createSession, requireAuth, createVerificationCode } = require('../auth');
+const { createSession, requireAuth, createCode, createVerificationCode, codeCooldown, checkCode } = require('../auth');
 
 const router = express.Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -96,60 +96,31 @@ router.put('/me', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-const MAX_VERIFY_ATTEMPTS = 5;
-
 // POST /api/auth/verify  (protected)  body: { verification_code }
-// Checks the code against the stored bcrypt hash, and also checks expiry and attempts. If successful, marks the account as verified and deletes the code.
+// Checks the sign-up code (expiry, attempt limit, bcrypt compare: see checkCode in src/auth.js).
+// If it matches, marks the account as verified.
 router.post('/verify', requireAuth, async (req, res, next) => {
   try {
     const { verification_code } = req.body || {};
     if (!verification_code) return res.status(400).json({ error: 'Verification code is required.' });
     if (req.user.verified) return res.status(400).json({ error: 'Account is already verified.' });
 
-    const userId = req.user.user_id;
+    const result = await checkCode(req.user.user_id, 'verify_email', verification_code);
+    if (!result.ok) return res.status(result.status).json(result.body);
 
-    // Look up by user only. The typed code is checked with bcrypt below, never in SQL.
-    // Expiry is worked out in SQL because db.js returns dates as strings (dateStrings: true).
-    const [rows] = await db.query(
-      'SELECT verification_code, attempts, expires_at <= NOW() AS expired FROM Verification WHERE user_id = ?',
-      [userId]
-    );
-    if (!rows.length) return res.status(400).json({ error: 'No active code. Please request a new one.' });
-    const row = rows[0];
-
-    // 1. Expired: remove it so it can never be used.
-    if (row.expired) {
-      await db.query('DELETE FROM Verification WHERE user_id = ?', [userId]);
-      return res.status(400).json({ error: 'Code expired. Please request a new one.' });
-    }
-
-    // 2. Out of attempts: checked BEFORE comparing, so a correct guess after the limit still fails.
-    if (row.attempts >= MAX_VERIFY_ATTEMPTS) {
-      await db.query('DELETE FROM Verification WHERE user_id = ?', [userId]);
-      return res.status(429).json({ error: 'Too many incorrect attempts. Please request a new code.' });
-    }
-
-    // 3. Compare the typed code against the stored bcrypt hash.
-    const ok = await bcrypt.compare(String(verification_code), row.verification_code);
-    if (!ok) {
-      // attempts = attempts + 1 lets the database do the math instead of trusting our copy.
-      await db.query('UPDATE Verification SET attempts = attempts + 1 WHERE user_id = ?', [userId]);
-      const left = MAX_VERIFY_ATTEMPTS - (row.attempts + 1);
-      if (left <= 0) {
-        await db.query('DELETE FROM Verification WHERE user_id = ?', [userId]);
-        return res.status(429).json({ error: 'Too many incorrect attempts. Please request a new code.' });
-      }
-      return res.status(400).json({ error: `Incorrect code. ${left} attempt(s) left.`, attempts_left: left });
-    }
-
-    // 4. Correct: verify the account and use up the code.
-    await db.query('UPDATE Users SET verified = TRUE WHERE user_id = ?', [userId]);
-    await db.query('DELETE FROM Verification WHERE user_id = ?', [userId]);
+    await db.query('UPDATE Users SET verified = TRUE WHERE user_id = ?', [req.user.user_id]);
     res.json({ message: 'Account verified.' });
   } catch (e) { next(e); }
 });
 
-const RESEND_COOLDOWN_SECONDS = 60;
+// Answers 429 with how long to wait if a code of this purpose was sent less than a minute ago.
+// Returns true when it already answered, so callers can write `if (await tooSoon(...)) return;`.
+async function tooSoon(res, userId, purpose) {
+  const wait = await codeCooldown(userId, purpose);
+  if (!wait) return false;
+  res.status(429).json({ error: `Please wait ${wait} seconds before requesting a new code.`, retry_after: wait });
+  return true;
+}
 
 // POST /api/auth/send-verification  (protected, no body)
 // Emails the logged-in user a new code. The user comes from their session, never from the request body,
@@ -157,18 +128,57 @@ const RESEND_COOLDOWN_SECONDS = 60;
 router.post('/send-verification', requireAuth, async (req, res, next) => {
   try {
     if (req.user.verified) return res.status(400).json({ error: 'Account is already verified.' });
-
-    const [rows] = await db.query(
-      'SELECT TIMESTAMPDIFF(SECOND, created_at, NOW()) AS seconds_ago FROM Verification WHERE user_id = ?',
-      [req.user.user_id]
-    );
-    if (rows.length && rows[0].seconds_ago < RESEND_COOLDOWN_SECONDS) {
-      const wait = RESEND_COOLDOWN_SECONDS - rows[0].seconds_ago;
-      return res.status(429).json({ error: `Please wait ${wait} seconds before requesting a new code.`, retry_after: wait });
-    }
+    if (await tooSoon(res, req.user.user_id, 'verify_email')) return;
 
     await createVerificationCode(req.user.user_id, req.user.email);
     res.json({ message: 'Verification email sent. Please check your inbox.' });
+  } catch (e) { next(e); }
+});
+
+// POST /api/auth/email/change  (protected)  body: { current_password, new_email }
+// Step 1 of changing email: checks the password, then emails a code to the NEW address.
+// Nothing changes yet. The new address waits in Verification.new_email until it's confirmed,
+// so a typo or someone else's address never becomes the account's email.
+router.post('/email/change', requireAuth, async (req, res, next) => {
+  try {
+    const { current_password } = req.body || {};
+    const new_email = String((req.body || {}).new_email || '').trim().toLowerCase();
+    if (!current_password || !new_email)
+      return res.status(400).json({ error: 'Current password and new email are required.' });
+    if (!EMAIL_RE.test(new_email)) return res.status(400).json({ error: 'Invalid email address.' });
+    if (new_email === req.user.email) return res.status(400).json({ error: 'That is already your email.' });
+
+    const userId = req.user.user_id;
+    const [rows] = await db.query('SELECT password_hash FROM Users WHERE user_id = ?', [userId]);
+    if (!(await bcrypt.compare(String(current_password), rows[0].password_hash)))
+      return res.status(400).json({ error: 'Current password is incorrect.' }); // 400, not 401: see PUT /password
+
+    const [taken] = await db.query('SELECT user_id FROM Users WHERE email = ?', [new_email]);
+    if (taken.length) return res.status(409).json({ error: 'An account with that email already exists.' });
+
+    if (await tooSoon(res, userId, 'change_email')) return;
+    await createCode(userId, new_email, 'change_email', new_email);
+    res.json({ message: `We sent a code to ${new_email}.` });
+  } catch (e) { next(e); }
+});
+
+// POST /api/auth/email/confirm  (protected)  body: { code }
+// Step 2: if the code sent to the new address matches, that address becomes the account's email.
+router.post('/email/confirm', requireAuth, async (req, res, next) => {
+  try {
+    const { code } = req.body || {};
+    if (!code) return res.status(400).json({ error: 'Code is required.' });
+
+    const result = await checkCode(req.user.user_id, 'change_email', code);
+    if (!result.ok) return res.status(result.status).json(result.body);
+    const newEmail = result.row.new_email;
+
+    // Someone may have registered this address since the code was sent.
+    const [taken] = await db.query('SELECT user_id FROM Users WHERE email = ?', [newEmail]);
+    if (taken.length) return res.status(409).json({ error: 'An account with that email already exists.' });
+
+    await db.query('UPDATE Users SET email = ? WHERE user_id = ?', [newEmail, req.user.user_id]);
+    res.json({ message: 'Email updated.', email: newEmail });
   } catch (e) { next(e); }
 });
 
@@ -216,22 +226,5 @@ router.put('/password', requireAuth, async (req, res, next) => {
 });
 
 // TODO: Implement password reset functionality (UC-05) and user management for admins (UC-06).
-
-router.put('/email', requireAuth, async (req, res, next) => {
-  try {
-    const { current_password, new_email } = req.body;
-    const userId = req.user.user_id;
-
-    const [rows] = await db.query('SELECT * FROM Users WHERE user_id = ?', [userId]);
-    if (!rows.length) return res.status(404).json({ error: 'User not found.' });
-    const user = rows[0];
-
-    const ok = await bcrypt.compare(current_password, user.password_hash);
-    if (!ok) return res.status(400).json({ error: 'Current password is incorrect.' });
-
-    await db.query('UPDATE Users SET email = ? WHERE user_id = ?', [new_email, userId]);
-    res.json({ message: 'Email updated successfully.' });
-  } catch (e) { next(e); }
-});
 
 module.exports = router;

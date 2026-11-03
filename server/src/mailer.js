@@ -1,4 +1,4 @@
-// Sends emails (currently just verification codes).
+// Sends the emails that carry one-time codes (verification, email change, ...).
 // With SMTP_HOST set in .env, mail goes through that server.
 // Without it (local development), mail goes to a free Ethereal test inbox: nothing is really delivered,
 // and the server log prints a link to view the email plus the code itself, so you can test without a real mailbox.
@@ -32,12 +32,25 @@ function getTransporter() {
   return transporterPromise;
 }
 
-async function sendVerificationEmail(to, code) {
+// The subject and wording for each kind of code. `purpose` matches Verification.purpose.
+const CODE_EMAILS = {
+  verify_email: {
+    subject: 'Your Wardrobe Helper verification code',
+    text: (code) => `Your verification code is ${code}. It expires in 15 minutes.\n\nIf you didn't create a Wardrobe Helper account, you can ignore this email.`,
+  },
+  change_email: {
+    subject: 'Confirm your new Wardrobe Helper email',
+    text: (code) => `Enter ${code} in the app to make this your Wardrobe Helper email. It expires in 15 minutes.\n\nIf you didn't ask to change your email, you can ignore this email.`,
+  },
+};
+
+async function sendCodeEmail(to, code, purpose = 'verify_email') {
+  const kind = CODE_EMAILS[purpose];
   const message = {
     from: process.env.MAIL_FROM || 'Wardrobe Helper <no-reply@wardrobe-helper.local>',
     to,
-    subject: 'Your Wardrobe Helper verification code',
-    text: `Your verification code is ${code}. It expires in 15 minutes.\n\nIf you didn't create a Wardrobe Helper account, you can ignore this email.`,
+    subject: kind.subject,
+    text: kind.text(code),
   };
 
   // Real SMTP: let errors reach the caller so the user sees that sending failed.
@@ -48,7 +61,7 @@ async function sendVerificationEmail(to, code) {
   }
 
   // Development: the code is printed here, so testing works even if Ethereal can't be reached.
-  console.log(`[dev] Verification code for ${to}: ${code}`);
+  console.log(`[dev] ${purpose} code for ${to}: ${code}`);
   try {
     const transporter = await getTransporter();
     const info = await transporter.sendMail(message);
@@ -58,4 +71,4 @@ async function sendVerificationEmail(to, code) {
   }
 }
 
-module.exports = { sendVerificationEmail };
+module.exports = { sendCodeEmail };

@@ -23,7 +23,7 @@ export default function SettingsScreen() {
     { title: 'Account and Security', data: [
       { label: 'Sign Out', onPress: signOut },
       // TODO: Merge the "Change Email" and "Change Password" and "2FA Settings" into one "Credentials" screen, and implement the backend for those features. 
-      { label: 'Change Email', onPress: notYet('Change Email') },
+      { label: 'Change Email', onPress: () => navigation.navigate('ChangeEmail') },
       { label: 'Change Password', onPress: () => navigation.navigate('ChangePassword') },
       { label: '2FA Settings', onPress: notYet('2FA Settings') },
       { label: 'Delete Account', onPress: () => navigation.navigate('DeleteAccount'), destructive: true },

@@ -224,12 +224,20 @@ export const api = {
 			body: { current_password: currentPassword, new_password: newPassword },
 		}),
 
-	changeEmail: (currentPassword: string, newEmail: string) =>
-		request<{ message: string }>("/auth/email", {
-			method: "PUT",
+	// Change email, step 1: checks the password and emails a code to the NEW address.
+	requestEmailChange: (currentPassword: string, newEmail: string) =>
+		request<{ message: string }>("/auth/email/change", {
+			method: "POST",
 			body: { current_password: currentPassword, new_email: newEmail },
 		}),
-	
+
+	// Change email, step 2: the code from that email. On success the new address is the account's email.
+	confirmEmailChange: (code: string) =>
+		request<{ message: string; email: string }>("/auth/email/confirm", {
+			method: "POST",
+			body: { code },
+		}),
+
 	me: () => request<User & Record<string, unknown>>("/auth/me"),
 
 	// Permanently deletes the account (server re-checks the password). The session is gone afterwards,
