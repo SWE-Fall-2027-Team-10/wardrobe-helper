@@ -172,4 +172,41 @@ router.post('/send-verification', requireAuth, async (req, res, next) => {
 });
 
 // TODO: Implement password reset functionality (UC-05) and user management for admins (UC-06).
+
+router.put('/email', requireAuth, async (req, res, next) => {
+  try {
+    const { current_password, new_email } = req.body;
+    const userId = req.user.user_id;
+
+    const [rows] = await db.query('SELECT * FROM Users WHERE user_id = ?', [userId]);
+    if (!rows.length) return res.status(404).json({ error: 'User not found.' });
+    const user = rows[0];
+
+    const ok = await bcrypt.compare(current_password, user.password_hash);
+    if (!ok) return res.status(400).json({ error: 'Current password is incorrect.' });
+
+    await db.query('UPDATE Users SET email = ? WHERE user_id = ?', [new_email, userId]);
+    res.json({ message: 'Email updated successfully.' });
+  } catch (e) { next(e); }
+});
+
+router.put('/password', requireAuth, async (req, res, next) => {
+  try {
+    const { current_password, new_password } = req.body;
+    const userId = req.user.user_id;
+
+    const [rows] = await db.query('SELECT * FROM Users WHERE user_id = ?', [userId]);
+    if (!rows.length) return res.status(404).json({ error: 'User not found.' });
+    const user = rows[0];
+
+    const ok = await bcrypt.compare(current_password, user.password_hash);
+    if (!ok) return res.status(400).json({ error: 'Current password is incorrect.' });
+
+    const hashedPassword = await bcrypt.hash(new_password, 10);
+    await db.query('UPDATE Users SET password_hash = ? WHERE user_id = ?', [hashedPassword, userId]);
+    res.json({ message: 'Password updated successfully.' });
+  } catch (e) { next(e); }
+});
+
+
 module.exports = router;

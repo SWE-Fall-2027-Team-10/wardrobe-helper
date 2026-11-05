@@ -24,7 +24,7 @@ export default function SettingsScreen() {
       { label: 'Sign Out', onPress: signOut },
       // TODO: Merge the "Change Email" and "Change Password" and "2FA Settings" into one "Credentials" screen, and implement the backend for those features. 
       { label: 'Change Email', onPress: notYet('Change Email') },
-      { label: 'Change Password', onPress: notYet('Change Password') },
+      { label: 'Change Password', onPress: () => navigation.navigate('ChangePassword') },
       { label: '2FA Settings', onPress: notYet('2FA Settings') },
       // TODO: Implement the "Delete Account" feature SAFELY, with a confirmation dialog and a warning that this action is irreversible. This should also delete all user data from the server.
       { label: 'Delete Account', onPress: notYet('Delete Account'), destructive: true },

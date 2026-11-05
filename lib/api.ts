@@ -216,7 +216,20 @@ export const api = {
 			method: "POST",
 			body: { verification_code: code },
 		}),
+	
+	// Changes the logged-in user's password. The server checks current_password first.
+	changePassword: (currentPassword: string, newPassword: string) =>
+		request<{ message: string }>("/auth/password", {
+			method: "PUT",
+			body: { current_password: currentPassword, new_password: newPassword },
+		}),
 
+	changeEmail: (currentPassword: string, newEmail: string) =>
+		request<{ message: string }>("/auth/email", {
+			method: "PUT",
+			body: { current_password: currentPassword, new_email: newEmail },
+		}),
+	
 	me: () => request<User & Record<string, unknown>>("/auth/me"),
 
 	// Clothing
