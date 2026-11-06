@@ -3,32 +3,54 @@ import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { ThemeProvider, useThemeSettings } from './ThemeContext';
+import { ThemeProvider, useThemeSettings } from './themes/ThemeContext';
 import { AuthProvider, useAuth } from './AuthContext';
 import MainTabs from './navigation/MainTabs';
 import LoginScreen from './screens/auth/LoginScreen';
 import RegisterScreen from './screens/auth/RegisterScreen';
+import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
 import SettingsScreen from './screens/settings/SettingsScreen';
 import AppearanceScreen from './screens/settings/AppearanceScreen';
+import VerificationScreen from './screens/auth/VerificationScreen';
+import ChangePasswordScreen from './screens/settings/ChangePasswordScreen';
+import DeleteAccountScreen from './screens/settings/DeleteAccountScreen';
+import ChangeEmailScreen from './screens/settings/ChangeEmailScreen';
+import TwoFactorScreen from './screens/settings/TwoFactorScreen';
 
 const Stack = createNativeStackNavigator();
 
-// Logged in: the tab bar, plus screens that open on top of it.
 // Logged out: the login and register screens.
+// Logged in but not verified: only the verification screen.
+// Logged in and verified: the tab bar, plus screens that open on top of it.
+// Changing `user` in AuthContext is what switches between these (no navigate() calls needed).
 function MyStack() {
   const { user } = useAuth();
   return (
     <Stack.Navigator>
-      {user ? (
+      {!user ? (
         <>
-          <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
-          <Stack.Screen name="Settings" component={SettingsScreen} />
-          <Stack.Screen name="Appearance" component={AppearanceScreen} />
+          {/* Seperate stack for logged out users, so they don't see the tab bar or other screens. */}
+          {/* The login screen is the first screen, so it will be shown first. The register screen can be opened from the login screen. */}
+          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Create Account' }} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: 'Reset Password' }} />
+        </>
+      ) : !user.verified ? (
+        <>
+          {/* Logged in but not verified: this is the only screen until /verify succeeds and refreshUser() runs. */}
+          <Stack.Screen name="Verification" component={VerificationScreen} options={{ title: 'Verify Email' }} />
         </>
       ) : (
         <>
-          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Create Account' }} />
+          {/* Main screen is the tab navigator, which has its own headers for each tab. */}
+          {/* You can find the main screens in navigation/MainTabs.tsx. The other screens here that are not in main are stacked on top of the tabs, so they cover the tab bar while open. */}
+          <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
+          <Stack.Screen name="Settings" component={SettingsScreen} />
+          <Stack.Screen name="Appearance" component={AppearanceScreen} />
+          <Stack.Screen name="ChangeEmail" component={ChangeEmailScreen} options={{ title: 'Change Email' }} />
+          <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Change Password' }} />
+          <Stack.Screen name="TwoFactor" component={TwoFactorScreen} options={{ title: 'Two-Factor Sign-In' }} />
+          <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} options={{ title: 'Delete Account' }} />
         </>
       )}
     </Stack.Navigator>

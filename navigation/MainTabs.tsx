@@ -6,7 +6,7 @@ import { Text, Pressable } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useNavigation, ParamListBase } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useTheme } from '../ThemeContext';
+import { useTheme } from '../themes/ThemeContext';
 import HomeScreen from '../screens/home/HomeScreen';
 import ClothingScreen from '../screens/wardrobe/ClothingScreen';
 import OutfitsScreen from '../screens/wardrobe/OutfitsScreen';

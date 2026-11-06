@@ -1,8 +1,8 @@
-import { StyleSheet, Text, Pressable, SectionList, Alert } from 'react-native';
+import { StyleSheet, Text, Pressable, SectionList } from 'react-native';
 import { useNavigation, ParamListBase } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../AuthContext';
-import { useTheme } from '../../ThemeContext';
+import { useTheme } from '../../themes/ThemeContext';
 
 type SettingsItem = {
   label: string;
@@ -10,19 +10,22 @@ type SettingsItem = {
   destructive?: boolean;
 };
 
+// Settings Screen
+// The settings screen is where users can manage their account and app settings. 
+// It provides options for signing out, changing email and password, managing 2FA settings, deleting the account, and changing the app's appearance.
 export default function SettingsScreen() {
   const { signOut } = useAuth();
   const theme = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
-  const notYet = (label: string) => () => Alert.alert(label, 'This feature is not implemented yet.');
 
   const settingsSections: { title: string; data: SettingsItem[] }[] = [
     { title: 'Account and Security', data: [
       { label: 'Sign Out', onPress: signOut },
-      { label: '2FA Settings', onPress: notYet('2FA Settings') },
-      { label: 'Change Email', onPress: notYet('Change Email') },
-      { label: 'Change Password', onPress: notYet('Change Password') },
-      { label: 'Delete Account', onPress: notYet('Delete Account'), destructive: true },
+      // TODO: Merge the "Change Email" and "Change Password" and "2FA Settings" into one "Credentials" screen, and implement the backend for those features. 
+      { label: 'Change Email', onPress: () => navigation.navigate('ChangeEmail') },
+      { label: 'Change Password', onPress: () => navigation.navigate('ChangePassword') },
+      { label: '2FA Settings', onPress: () => navigation.navigate('TwoFactor') },
+      { label: 'Delete Account', onPress: () => navigation.navigate('DeleteAccount'), destructive: true },
     ]},
     { title: 'App Settings', data: [
       { label: 'Appearance', onPress: () => navigation.navigate('Appearance') },
@@ -50,6 +53,8 @@ export default function SettingsScreen() {
   );
 }
 
+// Man I really need to make a global style sheet for this app.
+// Im going to cry if I have to write more stylesheets
 const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 13,

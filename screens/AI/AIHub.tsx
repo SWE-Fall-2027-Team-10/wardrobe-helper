@@ -9,7 +9,7 @@ import { useNavigation, ParamListBase } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 // 4. Your app's shared code: paths depend on how deep the file is
-import { useTheme } from '../../ThemeContext';
+import { useTheme } from '../../themes/ThemeContext';
 import { useAuth } from '../../AuthContext';   // only if it needs the user or signOut
 import { api } from '../../lib/api';           // only if it calls the server
 
@@ -24,7 +24,9 @@ export default function AIHub() {
   );
 }
 
-// Layout here; colors come from the theme above
+// Layout here. Use the theme colors for background and text, and use the StyleSheet for spacing, font sizes, etc.
+// I love AI, We must go through gallons of water to give people advice on what color shirt to wear
+// TODO: Implement AI preview and chatbot features
 const styles = StyleSheet.create({
   container: {
     flex: 1,

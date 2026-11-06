@@ -20,8 +20,17 @@ All JSON. Protected routes need the header `Authorization: Bearer <token>` (the 
 | Method | Path | Use case | Body / query |
 |---|---|---|---|
 | POST | /api/auth/register | UC-01 Registration | first_name, last_name, email, password (8+ chars), date_of_birth (optional) |
-| POST | /api/auth/login | UC-02 Login | email, password -> returns `token` and `user` |
+| POST | /api/auth/login | UC-02 Login | email, password -> returns `token` and `user`. With 2FA on, the first call returns `two_factor_required: true` and emails a code; call again with `code` too |
 | POST | /api/auth/logout | UC-03 Logout | (protected) ends the session |
+| POST | /api/auth/verify | Email verification | (protected) verification_code -> marks the account verified. 5 tries, codes last 15 min |
+| POST | /api/auth/send-verification | Email verification | (protected, no body) emails a new code; once per 60 s |
+| POST | /api/auth/email/change | Change email | (protected) current_password, new_email. Emails a code to the new address; nothing changes yet. Once per 60 s |
+| POST | /api/auth/email/confirm | Change email | (protected) code. Makes the new address the account's email |
+| PUT | /api/auth/password | Change password | (protected) current_password, new_password (8+ chars). Signs out the user's other devices |
+| POST | /api/auth/password/forgot | Forgot password | email. Emails a reset code if the account exists; same answer either way |
+| POST | /api/auth/password/reset | Forgot password | email, code, new_password (8+ chars). Signs out every device |
+| PUT | /api/auth/2fa | Two-factor sign-in | (protected, verified) enabled (true/false), current_password |
+| DELETE | /api/auth/me | Delete account | (protected) password. Deletes the user and all their data (cascades) |
 | GET | /api/auth/me | UC-04 User Management | (protected) account + profile |
 | PUT | /api/auth/me | UC-04 User Management | (protected) any of first_name, last_name, date_of_birth, height, clothing_size, preferences, profile_image |
 | POST | /api/clothing | UC-05 Upload Clothing | (protected) name, category required; color, size, brand, image_url |
@@ -36,3 +45,10 @@ From the phone, `localhost` is the phone itself. Use your computer's local IP, e
 
 ## Roles
 `Users.role` is `'user'` by default. `requireRole('admin')` in `src/auth.js` is ready if an admin-only route is ever needed.
+
+## Email verification
+Registering emails a 6-digit code (also sent again by `/api/auth/send-verification`). Only its bcrypt hash is stored, in the `Verification` table. Until `/api/auth/verify` succeeds, `Users.verified` is false and the clothing, outfits, favorites and sharing routes answer 403 (`requireVerified` in `src/auth.js`).
+
+In development, leave `SMTP_HOST` empty in `.env`: no real email is sent, and the server log prints the code and a link to view the email on Ethereal. Databases created before this feature need `database/add_verification.sql` run once.
+
+The `Verification` table holds one pending code per user per `purpose` (`verify_email`, `change_email`, `reset_password`, `login_2fa`). All codes share the same rules in `checkCode` (`src/auth.js`): 15-minute expiry, 5 attempts, one new code per minute. Databases from before purposes existed need `database/add_code_purposes.sql` run once.

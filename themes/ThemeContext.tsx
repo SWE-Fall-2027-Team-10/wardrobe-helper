@@ -1,4 +1,6 @@
 // App-wide theme state. The chosen theme is saved on the device so it sticks between launches.
+// Creates an object for the program to call to get the current theme colors, and a function to change the theme. 
+// The theme is saved in secure storage so it persists between app launches.
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { themes, Theme } from './theme';
@@ -27,7 +29,7 @@ function useThemeContext() {
 // Just the colors. Use this in screens: const theme = useTheme();
 export const useTheme = () => useThemeContext().theme;
 
-// Colors plus the controls for changing them. Use this on the Appearance screen.
+// Colors plus the controls for changing them. Use this on the Appearance screen ONLY! DO NOT TOUCH!
 export const useThemeSettings = () => useThemeContext();
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

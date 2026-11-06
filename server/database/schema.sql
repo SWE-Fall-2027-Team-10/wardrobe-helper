@@ -14,7 +14,9 @@ CREATE TABLE IF NOT EXISTS Users (
   date_of_birth  DATE,
   role           VARCHAR(20)  NOT NULL DEFAULT 'user',   -- 'user' or 'admin'
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  verified        BOOLEAN     NOT NULL DEFAULT FALSE,
+  two_factor_enabled BOOLEAN  NOT NULL DEFAULT FALSE   -- when on, login also needs a code emailed to the user
 );
 
 CREATE TABLE IF NOT EXISTS User_Profile (
@@ -33,6 +35,24 @@ CREATE TABLE IF NOT EXISTS Sessions (
   session_token  VARCHAR(255) NOT NULL UNIQUE,            -- SHA-256 hash of the token given to the app
   created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at     DATETIME NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+);
+
+-- One-time email codes: at most one pending code per user per purpose.
+--   verify_email  confirm the sign-up address
+--   change_email  confirm a new address; new_email holds it until the code is entered
+--   reset_password  forgot-password code
+--   login_2fa     sign-in code when two_factor_enabled is on
+-- Existing databases: run database/add_verification.sql, add_code_purposes.sql and add_two_factor.sql (in that order, skipping any already run) instead of re-running this file.
+CREATE TABLE IF NOT EXISTS Verification (
+  user_id            INT NOT NULL,
+  purpose            VARCHAR(20) NOT NULL DEFAULT 'verify_email',
+  verification_code  VARCHAR(255) NOT NULL,        -- bcrypt hash of the 6-digit code; the code itself is only ever in the email
+  new_email          VARCHAR(100) NULL,            -- change_email only: the address waiting to be confirmed
+  attempts           INT NOT NULL DEFAULT 0,       -- wrong guesses so far (max 5)
+  created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- when the code was last sent; used for the 60 s resend cooldown
+  expires_at         DATETIME NOT NULL,            -- 15 minutes after created_at
+  PRIMARY KEY (user_id, purpose),
   FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
 );
 

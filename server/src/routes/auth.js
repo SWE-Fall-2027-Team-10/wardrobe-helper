@@ -2,11 +2,12 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
-const { createSession, requireAuth } = require('../auth');
+const { createSession, requireAuth, createCode, createVerificationCode, codeCooldown, checkCode } = require('../auth');
 
 const router = express.Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const publicUser = (u) => ({ user_id: u.user_id, first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role });
+const MIN_PASSWORD_LENGTH = 8;
+const publicUser = (u) => ({ user_id: u.user_id, first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, verified: Boolean(u.verified), two_factor_enabled: Boolean(u.two_factor_enabled), date_of_birth: u.date_of_birth });
 
 // POST /api/auth/register
 router.post('/register', async (req, res, next) => {
@@ -15,7 +16,7 @@ router.post('/register', async (req, res, next) => {
     if (!first_name || !last_name || !email || !password)
       return res.status(400).json({ error: 'First name, last name, email, and password are required.' });
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Invalid email address.' });
-    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    if (password.length < MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
 
     const [dup] = await db.query('SELECT user_id FROM Users WHERE email = ?', [email.toLowerCase()]);
     if (dup.length) return res.status(409).json({ error: 'An account with that email already exists.' });
@@ -26,20 +27,51 @@ router.post('/register', async (req, res, next) => {
       [first_name.trim(), last_name.trim(), email.toLowerCase(), hash, date_of_birth || null]
     );
     await db.query('INSERT INTO User_Profile (user_id) VALUES (?)', [result.insertId]);
-    res.status(201).json({ message: 'Account created.', user_id: result.insertId });
+
+    // Send the first verification code. If the email fails, the account still exists and the
+    // user can press "Resend" on the verification screen, so don't fail the whole registration.
+    try {
+      await createVerificationCode(result.insertId, email.toLowerCase());
+    } catch (mailErr) {
+      console.error('Could not send verification email:', mailErr);
+    }
+    res.status(201).json({ message: 'Account created. Check your email for a verification code.', user_id: result.insertId });
   } catch (e) { next(e); }
 });
 
-// POST /api/auth/login
+// POST /api/auth/login  body: { email, password, code? }
+// With 2FA off: correct email + password -> { token, user }.
+// With 2FA on: the first call (no code) emails a 'login_2fa' code and answers { two_factor_required: true }
+// with no token. The app then sends email + password + code; only a matching code creates a session.
+// The password is checked on both calls, so a code alone is never enough.
 router.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = req.body || {};
+    const { email, password, code } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
-    const [rows] = await db.query('SELECT * FROM Users WHERE email = ?', [email.toLowerCase()]);
-    const ok = rows.length && (await bcrypt.compare(password, rows[0].password_hash));
+    const [rows] = await db.query('SELECT * FROM Users WHERE email = ?', [String(email).trim().toLowerCase()]);
+    const ok = rows.length && (await bcrypt.compare(String(password), rows[0].password_hash));
     if (!ok) return res.status(401).json({ error: 'Incorrect email or password.' });
-    const token = await createSession(rows[0].user_id);
-    res.json({ token, user: publicUser(rows[0]) });
+    const user = rows[0];
+
+    if (user.two_factor_enabled) {
+      if (!code) {
+        // Send a code, unless one went out less than a minute ago (then the user should use that one).
+        const wait = await codeCooldown(user.user_id, 'login_2fa');
+        if (!wait) await createCode(user.user_id, user.email, 'login_2fa');
+        return res.json({
+          two_factor_required: true,
+          message: wait
+            ? `We already sent a code to ${user.email}. You can get a new one in ${wait} seconds.`
+            : `We sent a sign-in code to ${user.email}.`,
+          retry_after: wait || 60,
+        });
+      }
+      const result = await checkCode(user.user_id, 'login_2fa', code);
+      if (!result.ok) return res.status(result.status).json(result.body);
+    }
+
+    const token = await createSession(user.user_id);
+    res.json({ token, user: publicUser(user) });
   } catch (e) { next(e); }
 });
 
@@ -55,12 +87,13 @@ router.post('/logout', requireAuth, async (req, res, next) => {
 router.get('/me', requireAuth, async (req, res, next) => {
   try {
     const [rows] = await db.query(
-      `SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, u.date_of_birth,
+      `SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, u.verified, u.two_factor_enabled, u.date_of_birth,
               p.height, p.clothing_size, p.preferences, p.profile_image
          FROM Users u LEFT JOIN User_Profile p ON p.user_id = u.user_id WHERE u.user_id = ?`,
       [req.user.user_id]
     );
-    res.json(rows[0]);
+    // MySQL BOOLEAN comes back as 0/1
+    res.json({ ...rows[0], verified: Boolean(rows[0].verified), two_factor_enabled: Boolean(rows[0].two_factor_enabled) });
   } catch (e) { next(e); }
 });
 
@@ -86,5 +119,210 @@ router.put('/me', requireAuth, async (req, res, next) => {
     res.json({ message: 'Account updated.' });
   } catch (e) { next(e); }
 });
+
+// POST /api/auth/verify  (protected)  body: { verification_code }
+// Checks the sign-up code (expiry, attempt limit, bcrypt compare: see checkCode in src/auth.js).
+// If it matches, marks the account as verified.
+router.post('/verify', requireAuth, async (req, res, next) => {
+  try {
+    const { verification_code } = req.body || {};
+    if (!verification_code) return res.status(400).json({ error: 'Verification code is required.' });
+    if (req.user.verified) return res.status(400).json({ error: 'Account is already verified.' });
+
+    const result = await checkCode(req.user.user_id, 'verify_email', verification_code);
+    if (!result.ok) return res.status(result.status).json(result.body);
+
+    await db.query('UPDATE Users SET verified = TRUE WHERE user_id = ?', [req.user.user_id]);
+    res.json({ message: 'Account verified.' });
+  } catch (e) { next(e); }
+});
+
+// Answers 429 with how long to wait if a code of this purpose was sent less than a minute ago.
+// Returns true when it already answered, so callers can write `if (await tooSoon(...)) return;`.
+async function tooSoon(res, userId, purpose) {
+  const wait = await codeCooldown(userId, purpose);
+  if (!wait) return false;
+  res.status(429).json({ error: `Please wait ${wait} seconds before requesting a new code.`, retry_after: wait });
+  return true;
+}
+
+// POST /api/auth/send-verification  (protected, no body)
+// Emails the logged-in user a new code. The user comes from their session, never from the request body,
+// so nobody can trigger emails to someone else's address. Limited to one request per minute.
+router.post('/send-verification', requireAuth, async (req, res, next) => {
+  try {
+    if (req.user.verified) return res.status(400).json({ error: 'Account is already verified.' });
+    if (await tooSoon(res, req.user.user_id, 'verify_email')) return;
+
+    await createVerificationCode(req.user.user_id, req.user.email);
+    res.json({ message: 'Verification email sent. Please check your inbox.' });
+  } catch (e) { next(e); }
+});
+
+// POST /api/auth/email/change  (protected)  body: { current_password, new_email }
+// Step 1 of changing email: checks the password, then emails a code to the NEW address.
+// Nothing changes yet. The new address waits in Verification.new_email until it's confirmed,
+// so a typo or someone else's address never becomes the account's email.
+router.post('/email/change', requireAuth, async (req, res, next) => {
+  try {
+    const { current_password } = req.body || {};
+    const new_email = String((req.body || {}).new_email || '').trim().toLowerCase();
+    if (!current_password || !new_email)
+      return res.status(400).json({ error: 'Current password and new email are required.' });
+    if (!EMAIL_RE.test(new_email)) return res.status(400).json({ error: 'Invalid email address.' });
+    if (new_email === req.user.email) return res.status(400).json({ error: 'That is already your email.' });
+
+    const userId = req.user.user_id;
+    const [rows] = await db.query('SELECT password_hash FROM Users WHERE user_id = ?', [userId]);
+    if (!(await bcrypt.compare(String(current_password), rows[0].password_hash)))
+      return res.status(400).json({ error: 'Current password is incorrect.' }); // 400, not 401: see PUT /password
+
+    const [taken] = await db.query('SELECT user_id FROM Users WHERE email = ?', [new_email]);
+    if (taken.length) return res.status(409).json({ error: 'An account with that email already exists.' });
+
+    if (await tooSoon(res, userId, 'change_email')) return;
+    await createCode(userId, new_email, 'change_email', new_email);
+    res.json({ message: `We sent a code to ${new_email}.` });
+  } catch (e) { next(e); }
+});
+
+// POST /api/auth/email/confirm  (protected)  body: { code }
+// Step 2: if the code sent to the new address matches, that address becomes the account's email.
+router.post('/email/confirm', requireAuth, async (req, res, next) => {
+  try {
+    const { code } = req.body || {};
+    if (!code) return res.status(400).json({ error: 'Code is required.' });
+
+    const result = await checkCode(req.user.user_id, 'change_email', code);
+    if (!result.ok) return res.status(result.status).json(result.body);
+    const newEmail = result.row.new_email;
+
+    // Someone may have registered this address since the code was sent.
+    const [taken] = await db.query('SELECT user_id FROM Users WHERE email = ?', [newEmail]);
+    if (taken.length) return res.status(409).json({ error: 'An account with that email already exists.' });
+
+    await db.query('UPDATE Users SET email = ? WHERE user_id = ?', [newEmail, req.user.user_id]);
+    res.json({ message: 'Email updated.', email: newEmail });
+  } catch (e) { next(e); }
+});
+
+// POST /api/auth/password/forgot  body: { email }   (no login needed)
+// Emails a reset code if an account uses this address. The answer is the same whether or not it does,
+// and a request inside the 60 s cooldown is quietly skipped, so nobody can use this route to find out
+// which emails have accounts.
+const FORGOT_REPLY = { message: 'If an account uses that email, we sent it a code.' };
+router.post('/password/forgot', async (req, res, next) => {
+  try {
+    const email = String((req.body || {}).email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
+
+    const [rows] = await db.query('SELECT user_id FROM Users WHERE email = ?', [email]);
+    if (rows.length && !(await codeCooldown(rows[0].user_id, 'reset_password'))) {
+      try {
+        await createCode(rows[0].user_id, email, 'reset_password');
+      } catch (mailErr) {
+        console.error('Could not send password reset email:', mailErr); // still give the same answer
+      }
+    }
+    res.json(FORGOT_REPLY);
+  } catch (e) { next(e); }
+});
+
+// POST /api/auth/password/reset  body: { email, code, new_password }   (no login needed)
+// Sets a new password if the code matches, then signs out every device.
+// The code went to the account's email, so this also proves the user owns it: the account counts as verified.
+router.post('/password/reset', async (req, res, next) => {
+  try {
+    const { code, new_password } = req.body || {};
+    const email = String((req.body || {}).email || '').trim().toLowerCase();
+    if (!email || !code || !new_password)
+      return res.status(400).json({ error: 'Email, code, and new password are required.' });
+    // Check the password BEFORE the code, so a too-short password doesn't use up a correct code.
+    if (typeof new_password !== 'string' || new_password.length < MIN_PASSWORD_LENGTH)
+      return res.status(400).json({ error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
+
+    const [rows] = await db.query('SELECT user_id FROM Users WHERE email = ?', [email]);
+    // No such account looks exactly like "no code was requested".
+    if (!rows.length) return res.status(400).json({ error: 'No active code. Please request a new one.' });
+    const userId = rows[0].user_id;
+
+    const result = await checkCode(userId, 'reset_password', code);
+    if (!result.ok) return res.status(result.status).json(result.body);
+
+    const hash = await bcrypt.hash(new_password, 10);
+    await db.query('UPDATE Users SET password_hash = ?, verified = TRUE WHERE user_id = ?', [hash, userId]);
+    await db.query('DELETE FROM Sessions WHERE user_id = ?', [userId]);
+    await db.query("DELETE FROM Verification WHERE user_id = ? AND purpose = 'verify_email'", [userId]); // no longer needed
+    res.json({ message: 'Password reset. You can log in with your new password.' });
+  } catch (e) { next(e); }
+});
+
+// PUT /api/auth/2fa  (protected)  body: { enabled: true | false, current_password }
+// Turns sign-in codes on or off. Needs the password, so someone holding an unlocked phone can't switch it off.
+// Only for verified accounts: the codes go to the account's email, so it has to be a confirmed address.
+router.put('/2fa', requireAuth, async (req, res, next) => {
+  try {
+    const { enabled, current_password } = req.body || {};
+    if (typeof enabled !== 'boolean' || !current_password)
+      return res.status(400).json({ error: 'enabled (true or false) and current password are required.' });
+    if (!req.user.verified) return res.status(403).json({ error: 'Verify your email before turning on two-factor sign-in.' });
+
+    const [rows] = await db.query('SELECT password_hash FROM Users WHERE user_id = ?', [req.user.user_id]);
+    if (!(await bcrypt.compare(String(current_password), rows[0].password_hash)))
+      return res.status(400).json({ error: 'Current password is incorrect.' }); // 400, not 401: see PUT /password
+
+    await db.query('UPDATE Users SET two_factor_enabled = ? WHERE user_id = ?', [enabled, req.user.user_id]);
+    if (!enabled) await db.query("DELETE FROM Verification WHERE user_id = ? AND purpose = 'login_2fa'", [req.user.user_id]);
+    res.json({
+      message: enabled ? 'Two-factor sign-in is on.' : 'Two-factor sign-in is off.',
+      two_factor_enabled: enabled,
+    });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/auth/me  (protected)  body: { password }
+// Permanently deletes the account after re-checking the password. Every table that references Users uses
+// ON DELETE CASCADE, so the profile, sessions, codes, clothing, outfits, favorites and shares go with it.
+router.delete('/me', requireAuth, async (req, res, next) => {
+  try {
+    const { password } = req.body || {};
+    if (!password) return res.status(400).json({ error: 'Password is required to delete your account.' });
+
+    const [rows] = await db.query('SELECT password_hash FROM Users WHERE user_id = ?', [req.user.user_id]);
+    if (!(await bcrypt.compare(String(password), rows[0].password_hash)))
+      return res.status(400).json({ error: 'Password is incorrect.' }); // 400, not 401: see PUT /password
+
+    await db.query('DELETE FROM Users WHERE user_id = ?', [req.user.user_id]);
+    res.json({ message: 'Account deleted.' });
+  } catch (e) { next(e); }
+});
+
+// PUT /api/auth/password  (protected)  body: { current_password, new_password }
+// Changes the password after re-checking the current one, then signs out every OTHER device.
+// A wrong current password answers 400, not 401: the app treats 401 as "session over" and would log the user out.
+router.put('/password', requireAuth, async (req, res, next) => {
+  try {
+    const { current_password, new_password } = req.body || {};
+    if (!current_password || !new_password)
+      return res.status(400).json({ error: 'Current password and new password are required.' });
+    if (typeof new_password !== 'string' || new_password.length < MIN_PASSWORD_LENGTH)
+      return res.status(400).json({ error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
+    if (new_password === current_password)
+      return res.status(400).json({ error: 'New password must be different from your current one.' });
+
+    const userId = req.user.user_id;
+    const [rows] = await db.query('SELECT password_hash FROM Users WHERE user_id = ?', [userId]);
+    if (!(await bcrypt.compare(String(current_password), rows[0].password_hash)))
+      return res.status(400).json({ error: 'Current password is incorrect.' });
+
+    const hash = await bcrypt.hash(new_password, 10);
+    await db.query('UPDATE Users SET password_hash = ? WHERE user_id = ?', [hash, userId]);
+    // Anyone else logged in as this user (maybe the reason for the change) loses access; this device stays logged in.
+    await db.query('DELETE FROM Sessions WHERE user_id = ? AND session_id <> ?', [userId, req.user.session_id]);
+    res.json({ message: 'Password updated.' });
+  } catch (e) { next(e); }
+});
+
+// TODO: Implement password reset functionality (UC-05) and user management for admins (UC-06).
 
 module.exports = router;
