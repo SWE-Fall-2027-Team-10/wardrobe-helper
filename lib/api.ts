@@ -31,6 +31,8 @@ export type Clothing = {
 	created_at: string;
 };
 
+export type ClothingItem = Clothing;
+
 export type ClothingInput = {
 	name: string;
 	category: string;
@@ -173,6 +175,34 @@ async function request<T>(
 // API endpoints
 
 export const api = {
+        // AI Wardrobe Advice
+        advice: (message: string, wardrobeItems: string[]) =>
+                request<{ reply: string }>("/ai/advice", {
+                        method: "POST",
+                        body: { message, wardrobeItems },
+                }),
+
+        // AI Outfit Preview
+        preview: (photoDataUrl: string, outfit: string) =>
+                request<{ imageBase64: string }>("/ai/preview", {
+                        method: "POST",
+                        body: { photoDataUrl, outfit },
+                }),
+
+        // Compatibility methods for existing screens
+        getClothing: () =>
+                request<Clothing[]>("/clothing"),
+
+        createOutfit: (
+                outfit_name: string,
+                description: string,
+                clothing_ids: number[],
+        ) =>
+                request<{ outfit_id: number }>("/outfits", {
+                        method: "POST",
+                        body: { outfit_name, description, clothing_ids },
+                }),
+
 	// Authentication
 
 	register: (input: RegisterInput) =>
