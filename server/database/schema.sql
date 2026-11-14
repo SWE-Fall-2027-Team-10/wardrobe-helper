@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS User_Profile (
   user_id        INT NOT NULL UNIQUE,
   height         DECIMAL(5,2),
   clothing_size  VARCHAR(20),
+  top_size       VARCHAR(20),
+  bottom_size    VARCHAR(20),
   preferences    TEXT,
   profile_image  VARCHAR(255),
   FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE

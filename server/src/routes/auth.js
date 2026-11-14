@@ -88,7 +88,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
   try {
     const [rows] = await db.query(
       `SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, u.verified, u.two_factor_enabled, u.date_of_birth,
-              p.height, p.clothing_size, p.preferences, p.profile_image
+              p.height, p.clothing_size, p.top_size, p.bottom_size, p.preferences, p.profile_image
          FROM Users u LEFT JOIN User_Profile p ON p.user_id = u.user_id WHERE u.user_id = ?`,
       [req.user.user_id]
     );
@@ -103,12 +103,17 @@ router.put('/me', requireAuth, async (req, res, next) => {
     const b = req.body || {};
     const userFields = {}, profileFields = {};
     for (const k of ['first_name', 'last_name', 'date_of_birth']) if (b[k] !== undefined) userFields[k] = b[k];
-    for (const k of ['height', 'clothing_size', 'preferences', 'profile_image']) if (b[k] !== undefined) profileFields[k] = b[k];
+    for (const k of ['height', 'clothing_size', 'top_size', 'bottom_size', 'preferences', 'profile_image'])
+      if (b[k] !== undefined) profileFields[k] = b[k];
     if (b.height !== undefined && b.height !== null &&
         (!Number.isFinite(Number(b.height)) || Number(b.height) < 50 || Number(b.height) > 300))
       return res.status(400).json({ error: 'Height must be between 50 and 300 cm.' });
     if (b.clothing_size !== undefined && b.clothing_size !== null && String(b.clothing_size).length > 20)
       return res.status(400).json({ error: 'Clothing size must be 20 characters or fewer.' });
+    if (b.top_size !== undefined && b.top_size !== null && String(b.top_size).length > 20)
+      return res.status(400).json({ error: 'Top size must be 20 characters or fewer.' });
+    if (b.bottom_size !== undefined && b.bottom_size !== null && String(b.bottom_size).length > 20)
+      return res.status(400).json({ error: 'Bottom size must be 20 characters or fewer.' });
     if (b.preferences !== undefined && b.preferences !== null && String(b.preferences).length > 1000)
       return res.status(400).json({ error: 'Preferences must be 1000 characters or fewer.' });
     if (userFields.first_name === '' || userFields.last_name === '')

@@ -19,6 +19,8 @@ export type User = {
 	date_of_birth: string | null;
 	height?: number | null;
 	clothing_size?: string | null;
+	top_size?: string | null;
+	bottom_size?: string | null;
 	preferences?: string | null;
 	profile_image?: string | null;
 };
@@ -26,6 +28,8 @@ export type User = {
 export type ProfileUpdate = {
 	height: number | null;
 	clothing_size: string | null;
+	top_size: string | null;
+	bottom_size: string | null;
 	preferences: string | null;
 };
 

@@ -205,7 +205,7 @@ All requests and responses are JSON. Protected routes need the header `Authoriza
 | POST | `/api/auth/login` | Log in, returns `token` | `email`, `password` |
 | POST | `/api/auth/logout` | End the current session (protected) | none |
 | GET | `/api/auth/me` | Account and profile (protected) | none |
-| PUT | `/api/auth/me` | Update account or profile (protected) | any of `first_name`, `last_name`, `date_of_birth`, `height`, `clothing_size`, `preferences`, `profile_image` |
+| PUT | `/api/auth/me` | Update account or profile (protected) | any of `first_name`, `last_name`, `date_of_birth`, `height`, `clothing_size`, `top_size`, `bottom_size`, `preferences`, `profile_image` |
 | POST | `/api/clothing` | Add a clothing item (protected) | `name`, `category` required; `color`, `size`, `brand`, `image_url` |
 | GET | `/api/clothing` | List, search, filter your clothing (protected) | optional `q`, `category`, `color` |
 | DELETE | `/api/clothing/:id` | Remove a clothing item (protected) | none |

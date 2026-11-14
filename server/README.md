@@ -32,7 +32,7 @@ All JSON. Protected routes need the header `Authorization: Bearer <token>` (the 
 | PUT | /api/auth/2fa | Two-factor sign-in | (protected, verified) enabled (true/false), current_password |
 | DELETE | /api/auth/me | Delete account | (protected) password. Deletes the user and all their data (cascades) |
 | GET | /api/auth/me | UC-04 User Management | (protected) account + profile |
-| PUT | /api/auth/me | UC-04 User Management | (protected) any of first_name, last_name, date_of_birth, height, clothing_size, preferences, profile_image |
+| PUT | /api/auth/me | UC-04 User Management | (protected) any of first_name, last_name, date_of_birth, height, clothing_size, top_size, bottom_size, preferences, profile_image |
 | POST | /api/clothing | UC-05 Upload Clothing | (protected) name, category required; color, size, brand, image_url |
 | GET | /api/clothing | UC-06 Search/Filter | (protected) optional `q`, `category`, `color` |
 | DELETE | /api/clothing/:id | Remove clothing | (protected) |
@@ -52,3 +52,5 @@ Registering emails a 6-digit code (also sent again by `/api/auth/send-verificati
 In development, leave `SMTP_HOST` empty in `.env`: no real email is sent, and the server log prints the code and a link to view the email on Ethereal. Databases created before this feature need `database/add_verification.sql` run once.
 
 The `Verification` table holds one pending code per user per `purpose` (`verify_email`, `change_email`, `reset_password`, `login_2fa`). All codes share the same rules in `checkCode` (`src/auth.js`): 15-minute expiry, 5 attempts, one new code per minute. Databases from before purposes existed need `database/add_code_purposes.sql` run once.
+
+Databases created before category-specific profile sizes need `database/add_profile_sizes.sql` run once. The existing `clothing_size` remains the default for all clothing, while `top_size` and `bottom_size` store optional overrides.

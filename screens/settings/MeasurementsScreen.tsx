@@ -13,37 +13,61 @@ import { useAuth } from "../../AuthContext";
 import { api, errorMessage } from "../../lib/api";
 import { useTheme } from "../../themes/ThemeContext";
 
+type SizeCategory = "all" | "tops" | "bottoms";
+
+const SIZE_CATEGORIES: { key: SizeCategory; label: string }[] = [
+	{ key: "all", label: "All" },
+	{ key: "tops", label: "Tops" },
+	{ key: "bottoms", label: "Bottoms" },
+];
+
 export default function MeasurementsScreen() {
 	const theme = useTheme();
 	const { refreshUser } = useAuth();
 	const [height, setHeight] = useState("");
 	const [clothingSize, setClothingSize] = useState("");
+	const [topSize, setTopSize] = useState("");
+	const [bottomSize, setBottomSize] = useState("");
+	const [sizeCategory, setSizeCategory] = useState<SizeCategory>("all");
 	const [preferences, setPreferences] = useState("");
 	const [loading, setLoading] = useState(true);
+	const [loadError, setLoadError] = useState("");
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState("");
 
+	const loadProfile = async () => {
+		setLoading(true);
+		setLoadError("");
+		try {
+			const profile = await api.me();
+			setHeight(profile.height == null ? "" : String(profile.height));
+			setClothingSize(profile.clothing_size ?? "");
+			setTopSize(profile.top_size ?? "");
+			setBottomSize(profile.bottom_size ?? "");
+			setPreferences(profile.preferences ?? "");
+		} catch (cause) {
+			setLoadError(errorMessage(cause));
+		} finally {
+			setLoading(false);
+		}
+	};
+
 	useEffect(() => {
-		let active = true;
-
-		api.me()
-			.then((profile) => {
-				if (!active) return;
-				setHeight(profile.height == null ? "" : String(profile.height));
-				setClothingSize(profile.clothing_size ?? "");
-				setPreferences(profile.preferences ?? "");
-			})
-			.catch((cause) => {
-				if (active) setError(errorMessage(cause));
-			})
-			.finally(() => {
-				if (active) setLoading(false);
-			});
-
-		return () => {
-			active = false;
-		};
+		void loadProfile();
 	}, []);
+
+	const selectedSize =
+		sizeCategory === "all"
+			? clothingSize
+			: sizeCategory === "tops"
+				? topSize
+				: bottomSize;
+
+	const setSelectedSize = (value: string) => {
+		if (sizeCategory === "all") setClothingSize(value);
+		else if (sizeCategory === "tops") setTopSize(value);
+		else setBottomSize(value);
+	};
 
 	const save = async () => {
 		setError("");
@@ -63,6 +87,8 @@ export default function MeasurementsScreen() {
 			await api.updateProfile({
 				height: heightNumber,
 				clothing_size: clothingSize.trim() || null,
+				top_size: topSize.trim() || null,
+				bottom_size: bottomSize.trim() || null,
 				preferences: preferences.trim() || null,
 			});
 			await refreshUser();
@@ -87,6 +113,20 @@ export default function MeasurementsScreen() {
 		return (
 			<View style={[styles.loading, { backgroundColor: theme.background }]}>
 				<ActivityIndicator color={theme.primary} />
+			</View>
+		);
+	}
+
+	if (loadError) {
+		return (
+			<View style={[styles.loadError, { backgroundColor: theme.background }]}>
+				<Text style={styles.errorText}>{loadError}</Text>
+				<Pressable
+					style={[styles.retryButton, { borderColor: theme.primary }]}
+					onPress={loadProfile}
+				>
+					<Text style={{ color: theme.primary, fontWeight: "600" }}>Try Again</Text>
+				</Pressable>
 			</View>
 		);
 	}
@@ -117,15 +157,50 @@ export default function MeasurementsScreen() {
 			</Text>
 
 			<Text style={[styles.label, { color: theme.textMuted }]}>Clothing size</Text>
+			<View style={styles.sizeCategories}>
+				{SIZE_CATEGORIES.map((category) => {
+					const selected = sizeCategory === category.key;
+					const value =
+						category.key === "all"
+							? clothingSize
+							: category.key === "tops"
+								? topSize
+								: bottomSize;
+
+					return (
+						<Pressable
+							key={category.key}
+							onPress={() => setSizeCategory(category.key)}
+							style={[
+								styles.sizeCategory,
+								{
+									backgroundColor: selected ? theme.primary : theme.surface,
+									borderColor: selected ? theme.primary : theme.border,
+								},
+							]}
+						>
+							<Text style={{ color: selected ? "#fff" : theme.text, fontWeight: "600" }}>
+								{category.label}
+							</Text>
+							<Text style={{ color: selected ? "#fff" : theme.textMuted, fontSize: 12 }}>
+								{value.trim() || "Not set"}
+							</Text>
+						</Pressable>
+					);
+				})}
+			</View>
 			<TextInput
 				style={inputStyle}
-				value={clothingSize}
-				onChangeText={setClothingSize}
-				placeholder="Example: M or 8"
+				value={selectedSize}
+				onChangeText={setSelectedSize}
+				placeholder={`Size for ${sizeCategory}`}
 				placeholderTextColor={theme.textMuted}
 				autoCapitalize="characters"
 				maxLength={20}
 			/>
+			<Text style={[styles.helper, { color: theme.textMuted }]}>
+				The All size is the default. Tops and Bottoms override it when provided.
+			</Text>
 
 			<Text style={[styles.label, { color: theme.textMuted }]}>Fit preferences</Text>
 			<TextInput
@@ -173,6 +248,12 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		justifyContent: "center",
 	},
+	loadError: {
+		flex: 1,
+		alignItems: "center",
+		justifyContent: "center",
+		padding: 24,
+	},
 	intro: {
 		fontSize: 15,
 		lineHeight: 22,
@@ -196,6 +277,20 @@ const styles = StyleSheet.create({
 		marginBottom: 6,
 		marginTop: 5,
 	},
+	sizeCategories: {
+		flexDirection: "row",
+		gap: 8,
+		marginBottom: 10,
+	},
+	sizeCategory: {
+		alignItems: "center",
+		borderRadius: 8,
+		borderWidth: 1,
+		flex: 1,
+		gap: 2,
+		paddingHorizontal: 8,
+		paddingVertical: 10,
+	},
 	multiline: {
 		minHeight: 104,
 	},
@@ -213,6 +308,13 @@ const styles = StyleSheet.create({
 	errorText: {
 		color: "#991b1b",
 		fontSize: 14,
+	},
+	retryButton: {
+		borderRadius: 8,
+		borderWidth: 1,
+		marginTop: 16,
+		paddingHorizontal: 20,
+		paddingVertical: 12,
 	},
 	button: {
 		alignItems: "center",
