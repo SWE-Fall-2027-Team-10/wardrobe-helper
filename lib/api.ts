@@ -17,6 +17,16 @@ export type User = {
 	verified: boolean;
 	two_factor_enabled: boolean;
 	date_of_birth: string | null;
+	height?: number | null;
+	clothing_size?: string | null;
+	preferences?: string | null;
+	profile_image?: string | null;
+};
+
+export type ProfileUpdate = {
+	height: number | null;
+	clothing_size: string | null;
+	preferences: string | null;
 };
 
 export type Clothing = {
@@ -301,7 +311,13 @@ export const api = {
 			body: { enabled, current_password: currentPassword },
 		}),
 
-	me: () => request<User & Record<string, unknown>>("/auth/me"),
+	me: () => request<User>("/auth/me"),
+
+	updateProfile: (input: ProfileUpdate) =>
+		request<{ message: string }>("/auth/me", {
+			method: "PUT",
+			body: input,
+		}),
 
 	// Permanently deletes the account (server re-checks the password). The session is gone afterwards,
 	// so the saved token is forgotten too. Call this through useAuth().deleteAccount so the app logs out.

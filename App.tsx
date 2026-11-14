@@ -12,6 +12,7 @@ import RegisterScreen from './screens/auth/RegisterScreen';
 import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
 import SettingsScreen from './screens/settings/SettingsScreen';
 import AppearanceScreen from './screens/settings/AppearanceScreen';
+import MeasurementsScreen from './screens/settings/MeasurementsScreen';
 import VerificationScreen from './screens/auth/VerificationScreen';
 import ChangePasswordScreen from './screens/settings/ChangePasswordScreen';
 import DeleteAccountScreen from './screens/settings/DeleteAccountScreen';
@@ -60,6 +61,7 @@ function MyStack() {
             options={{ headerShown: false }}
           />
           <Stack.Screen name="Settings" component={SettingsScreen} />
+          <Stack.Screen name="Measurements" component={MeasurementsScreen} />
           <Stack.Screen name="Appearance" component={AppearanceScreen} />
           <Stack.Screen
             name="ChangeEmail"

@@ -104,8 +104,13 @@ router.put('/me', requireAuth, async (req, res, next) => {
     const userFields = {}, profileFields = {};
     for (const k of ['first_name', 'last_name', 'date_of_birth']) if (b[k] !== undefined) userFields[k] = b[k];
     for (const k of ['height', 'clothing_size', 'preferences', 'profile_image']) if (b[k] !== undefined) profileFields[k] = b[k];
-    if (b.height !== undefined && (isNaN(Number(b.height)) || Number(b.height) <= 0))
-      return res.status(400).json({ error: 'Height must be a positive number.' });
+    if (b.height !== undefined && b.height !== null &&
+        (!Number.isFinite(Number(b.height)) || Number(b.height) < 50 || Number(b.height) > 300))
+      return res.status(400).json({ error: 'Height must be between 50 and 300 cm.' });
+    if (b.clothing_size !== undefined && b.clothing_size !== null && String(b.clothing_size).length > 20)
+      return res.status(400).json({ error: 'Clothing size must be 20 characters or fewer.' });
+    if (b.preferences !== undefined && b.preferences !== null && String(b.preferences).length > 1000)
+      return res.status(400).json({ error: 'Preferences must be 1000 characters or fewer.' });
     if (userFields.first_name === '' || userFields.last_name === '')
       return res.status(400).json({ error: 'Names cannot be empty.' });
     if (!Object.keys(userFields).length && !Object.keys(profileFields).length)

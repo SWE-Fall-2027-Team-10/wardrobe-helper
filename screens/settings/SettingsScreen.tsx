@@ -28,6 +28,7 @@ export default function SettingsScreen() {
       { label: 'Delete Account', onPress: () => navigation.navigate('DeleteAccount'), destructive: true },
     ]},
     { title: 'App Settings', data: [
+      { label: 'Measurements', onPress: () => navigation.navigate('Measurements') },
       { label: 'Appearance', onPress: () => navigation.navigate('Appearance') },
     ]},
   ];
