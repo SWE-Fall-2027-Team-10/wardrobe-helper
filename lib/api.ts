@@ -17,6 +17,42 @@ export type User = {
 	verified: boolean;
 	two_factor_enabled: boolean;
 	date_of_birth: string | null;
+	// Profile (from User_Profile). Lengths are always centimeters; measurement_unit is only for display.
+	// Optional because login answers with the account fields only; GET /auth/me fills these in.
+	height?: number | null;
+	chest?: number | null;
+	waist?: number | null;
+	hips?: number | null;
+	inseam?: number | null;
+	shoe_size?: string | null;
+	clothing_size?: ClothingSize | null;
+	fit_preference?: FitPreference | null;
+	measurement_unit?: MeasurementUnit;
+	preferences?: string | null;
+	profile_image?: string | null;
+};
+
+export const CLOTHING_SIZES = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"] as const;
+export type ClothingSize = (typeof CLOTHING_SIZES)[number];
+export type FitPreference = "slim" | "regular" | "relaxed";
+export type MeasurementUnit = "imperial" | "metric";
+
+// Fields PUT /auth/me accepts. Leave a field out to keep it; send null to clear an optional one.
+export type ProfileUpdate = {
+	first_name?: string;
+	last_name?: string;
+	date_of_birth?: string | null;
+	height?: number | null;
+	chest?: number | null;
+	waist?: number | null;
+	hips?: number | null;
+	inseam?: number | null;
+	shoe_size?: string | null;
+	clothing_size?: ClothingSize | null;
+	fit_preference?: FitPreference | null;
+	measurement_unit?: MeasurementUnit;
+	preferences?: string | null;
+	profile_image?: string | null;
 };
 
 export type Clothing = {
@@ -271,7 +307,15 @@ export const api = {
 			body: { enabled, current_password: currentPassword },
 		}),
 
-	me: () => request<User & Record<string, unknown>>("/auth/me"),
+	me: () => request<User>("/auth/me"),
+
+	// Saves name, birthday, measurements and style details. Answers with the full updated user.
+	// Call this through useAuth().updateProfile so the rest of the app (e.g. the Home greeting) updates too.
+	updateProfile: (changes: ProfileUpdate) =>
+		request<{ message: string; user: User }>("/auth/me", {
+			method: "PUT",
+			body: changes,
+		}),
 
 	// Permanently deletes the account (server re-checks the password). The session is gone afterwards,
 	// so the saved token is forgotten too. Call this through useAuth().deleteAccount so the app logs out.

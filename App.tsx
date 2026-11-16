@@ -16,6 +16,7 @@ import ChangePasswordScreen from './screens/settings/ChangePasswordScreen';
 import DeleteAccountScreen from './screens/settings/DeleteAccountScreen';
 import ChangeEmailScreen from './screens/settings/ChangeEmailScreen';
 import TwoFactorScreen from './screens/settings/TwoFactorScreen';
+import ProfileScreen from './screens/settings/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -46,6 +47,7 @@ function MyStack() {
           {/* You can find the main screens in navigation/MainTabs.tsx. The other screens here that are not in main are stacked on top of the tabs, so they cover the tab bar while open. */}
           <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
+          <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Your Profile' }} />
           <Stack.Screen name="Appearance" component={AppearanceScreen} />
           <Stack.Screen name="ChangeEmail" component={ChangeEmailScreen} options={{ title: 'Change Email' }} />
           <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Change Password' }} />

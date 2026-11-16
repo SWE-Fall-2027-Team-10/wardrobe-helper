@@ -32,7 +32,7 @@ All JSON. Protected routes need the header `Authorization: Bearer <token>` (the 
 | PUT | /api/auth/2fa | Two-factor sign-in | (protected, verified) enabled (true/false), current_password |
 | DELETE | /api/auth/me | Delete account | (protected) password. Deletes the user and all their data (cascades) |
 | GET | /api/auth/me | UC-04 User Management | (protected) account + profile |
-| PUT | /api/auth/me | UC-04 User Management | (protected) any of first_name, last_name, date_of_birth, height, clothing_size, preferences, profile_image |
+| PUT | /api/auth/me | UC-04 User Management | (protected) any of first_name, last_name, date_of_birth (YYYY-MM-DD), height, chest, waist, hips, inseam (all in **cm**), shoe_size, clothing_size (XXS–XXXL), fit_preference (slim/regular/relaxed), measurement_unit (imperial/metric, display only), preferences, profile_image. Send `null` to clear an optional field. Returns `{ message, user }` with the updated profile. Databases from before measurements need `database/add_measurements.sql` run once |
 | POST | /api/clothing | UC-05 Upload Clothing | (protected) name, category required; color, size, brand, image_url |
 | GET | /api/clothing | UC-06 Search/Filter | (protected) optional `q`, `category`, `color` |
 | DELETE | /api/clothing/:id | Remove clothing | (protected) |

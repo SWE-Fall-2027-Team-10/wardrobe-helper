@@ -1,4 +1,4 @@
-// Who is logged in, plus sign in / sign out. Any screen can use: const { user, signIn, signOut, refreshUser } = useAuth();
+// Who is logged in, plus sign in / sign out. Any screen can use: const { user, signIn, signOut, refreshUser, updateProfile } = useAuth();
 // This file gives functionality to the AuthContext, which is used by the app to manage user authentication. 
 // It provides the current user, signIn and signOut functions, and checks for a saved session on startup.
 import {
@@ -9,7 +9,7 @@ import {
 	ReactNode,
 } from "react";
 import { View, ActivityIndicator } from "react-native";
-import { api, clearToken, getToken, ApiError, User, errorMessage } from "./lib/api";
+import { api, clearToken, getToken, ApiError, User, ProfileUpdate } from "./lib/api";
 
 type AuthContextValue = {
 	user: User | null; // null = logged out
@@ -19,6 +19,7 @@ type AuthContextValue = {
 	signOut: () => Promise<void>;
 	refreshUser: () => Promise<void>; // re-fetch the user from the server, e.g. after verifying
 	deleteAccount: (password: string) => Promise<void>; // deletes the account, then shows the login screen
+	updateProfile: (changes: ProfileUpdate) => Promise<User>; // saves profile fields; throws with the server's message on bad input
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -82,6 +83,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		setUser(null);
 	};
 
+	// Saves to the server, then swaps in the updated user so every screen sees the new name/measurements.
+	const updateProfile = async (changes: ProfileUpdate) => {
+		const { user: updated } = await api.updateProfile(changes);
+		setUser(updated);
+		return updated;
+	};
+
 	if (checkingSession) {
 		// Avoids flashing the login screen while the saved session is checked
 		return (
@@ -98,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	}
 
 	return (
-		<AuthContext.Provider value={{ user, signIn, signOut, refreshUser, deleteAccount }}>
+		<AuthContext.Provider value={{ user, signIn, signOut, refreshUser, deleteAccount, updateProfile }}>
 			{children}
 		</AuthContext.Provider>
 	);
