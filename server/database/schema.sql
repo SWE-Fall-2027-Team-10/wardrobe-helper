@@ -19,11 +19,21 @@ CREATE TABLE IF NOT EXISTS Users (
   two_factor_enabled BOOLEAN  NOT NULL DEFAULT FALSE   -- when on, login also needs a code emailed to the user
 );
 
+-- Lengths (height, chest, waist, hips, inseam) are always stored in centimeters.
+-- measurement_unit ('imperial' or 'metric') only controls how the app displays them.
+-- Existing databases: run database/add_measurements.sql once instead of re-running this file.
 CREATE TABLE IF NOT EXISTS User_Profile (
   profile_id     INT AUTO_INCREMENT PRIMARY KEY,
   user_id        INT NOT NULL UNIQUE,
   height         DECIMAL(5,2),
+  chest          DECIMAL(5,2),
+  waist          DECIMAL(5,2),
+  hips           DECIMAL(5,2),
+  inseam         DECIMAL(5,2),
+  shoe_size      VARCHAR(10),
   clothing_size  VARCHAR(20),
+  fit_preference VARCHAR(20),                             -- 'slim', 'regular' or 'relaxed'
+  measurement_unit VARCHAR(10) NOT NULL DEFAULT 'imperial',
   preferences    TEXT,
   profile_image  VARCHAR(255),
   FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE

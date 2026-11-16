@@ -83,40 +83,156 @@ router.post('/logout', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ---- Profile (UC-04 User Management) ----
+// Lengths are stored in centimeters; measurement_unit only changes how the app shows them.
+const LENGTH_FIELDS = ['height', 'chest', 'waist', 'hips', 'inseam'];
+const LENGTH_LIMITS_CM = { height: [50, 275], chest: [40, 250], waist: [30, 250], hips: [40, 250], inseam: [20, 150] };
+const CLOTHING_SIZES = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+const FIT_PREFERENCES = ['slim', 'regular', 'relaxed'];
+const MEASUREMENT_UNITS = ['imperial', 'metric'];
+const NAME_MAX = 50;
+const PREFERENCES_MAX = 1000;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Account + profile as one object. mysql2 returns DECIMAL columns as strings, so lengths become numbers here.
+async function loadAccount(userId) {
+  const [rows] = await db.query(
+    `SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, u.verified, u.two_factor_enabled, u.date_of_birth,
+            p.height, p.chest, p.waist, p.hips, p.inseam, p.shoe_size, p.clothing_size, p.fit_preference,
+            p.measurement_unit, p.preferences, p.profile_image
+       FROM Users u LEFT JOIN User_Profile p ON p.user_id = u.user_id WHERE u.user_id = ?`,
+    [userId]
+  );
+  if (!rows.length) return null;
+  const r = rows[0];
+  const out = {
+    ...r,
+    verified: Boolean(r.verified), // MySQL BOOLEAN comes back as 0/1
+    two_factor_enabled: Boolean(r.two_factor_enabled),
+    measurement_unit: r.measurement_unit || 'imperial',
+  };
+  for (const k of LENGTH_FIELDS) out[k] = r[k] === null || r[k] === undefined ? null : Number(r[k]);
+  return out;
+}
+
+// Checks the body of PUT /me. Returns { error } or { userFields, profileFields } with cleaned values.
+// A field that is missing is left alone; a field sent as null (or "") is cleared.
+function parseProfileUpdate(b) {
+  const userFields = {}, profileFields = {};
+  const blank = (v) => v === null || (typeof v === 'string' && v.trim() === '');
+
+  for (const k of ['first_name', 'last_name']) {
+    if (b[k] === undefined) continue;
+    const v = typeof b[k] === 'string' ? b[k].trim() : '';
+    if (!v) return { error: 'First and last name cannot be empty.' };
+    if (v.length > NAME_MAX) return { error: `Names can be at most ${NAME_MAX} characters.` };
+    userFields[k] = v;
+  }
+
+  if (b.date_of_birth !== undefined) {
+    if (blank(b.date_of_birth)) userFields.date_of_birth = null;
+    else {
+      const v = String(b.date_of_birth).trim();
+      const d = new Date(`${v}T00:00:00Z`);
+      // The round trip catches dates like 2001-02-31, which Date would quietly roll over.
+      if (!DATE_RE.test(v) || isNaN(d) || d.toISOString().slice(0, 10) !== v)
+        return { error: 'Birthday must be a real date in the form YYYY-MM-DD.' };
+      if (d > new Date() || d.getUTCFullYear() < 1900) return { error: 'Birthday must be between 1900 and today.' };
+      userFields.date_of_birth = v;
+    }
+  }
+
+  for (const k of LENGTH_FIELDS) {
+    if (b[k] === undefined) continue;
+    if (blank(b[k])) { profileFields[k] = null; continue; }
+    const n = Number(b[k]);
+    const [min, max] = LENGTH_LIMITS_CM[k];
+    if (!Number.isFinite(n) || n < min || n > max)
+      return { error: `${k[0].toUpperCase() + k.slice(1)} must be between ${min} and ${max} cm.` };
+    profileFields[k] = Math.round(n * 100) / 100;
+  }
+
+  if (b.shoe_size !== undefined) {
+    if (blank(b.shoe_size)) profileFields.shoe_size = null;
+    else {
+      const v = String(b.shoe_size).trim();
+      if (v.length > 10) return { error: 'Shoe size can be at most 10 characters.' };
+      profileFields.shoe_size = v;
+    }
+  }
+
+  if (b.clothing_size !== undefined) {
+    if (blank(b.clothing_size)) profileFields.clothing_size = null;
+    else if (!CLOTHING_SIZES.includes(b.clothing_size))
+      return { error: `Clothing size must be one of ${CLOTHING_SIZES.join(', ')}.` };
+    else profileFields.clothing_size = b.clothing_size;
+  }
+
+  if (b.fit_preference !== undefined) {
+    if (blank(b.fit_preference)) profileFields.fit_preference = null;
+    else if (!FIT_PREFERENCES.includes(b.fit_preference))
+      return { error: `Fit must be one of ${FIT_PREFERENCES.join(', ')}.` };
+    else profileFields.fit_preference = b.fit_preference;
+  }
+
+  if (b.measurement_unit !== undefined) {
+    if (!MEASUREMENT_UNITS.includes(b.measurement_unit))
+      return { error: "Measurement unit must be 'imperial' or 'metric'." };
+    profileFields.measurement_unit = b.measurement_unit;
+  }
+
+  if (b.preferences !== undefined) {
+    if (blank(b.preferences)) profileFields.preferences = null;
+    else {
+      const v = String(b.preferences).trim();
+      if (v.length > PREFERENCES_MAX) return { error: `Style notes can be at most ${PREFERENCES_MAX} characters.` };
+      profileFields.preferences = v;
+    }
+  }
+
+  if (b.profile_image !== undefined) {
+    if (blank(b.profile_image)) profileFields.profile_image = null;
+    else {
+      const v = String(b.profile_image).trim();
+      if (v.length > 255 || !/^https?:\/\//i.test(v)) return { error: 'Profile image must be an http(s) URL.' };
+      profileFields.profile_image = v;
+    }
+  }
+
+  return { userFields, profileFields };
+}
+
 // GET /api/auth/me  (account + profile)
 router.get('/me', requireAuth, async (req, res, next) => {
   try {
-    const [rows] = await db.query(
-      `SELECT u.user_id, u.first_name, u.last_name, u.email, u.role, u.verified, u.two_factor_enabled, u.date_of_birth,
-              p.height, p.clothing_size, p.preferences, p.profile_image
-         FROM Users u LEFT JOIN User_Profile p ON p.user_id = u.user_id WHERE u.user_id = ?`,
-      [req.user.user_id]
-    );
-    // MySQL BOOLEAN comes back as 0/1
-    res.json({ ...rows[0], verified: Boolean(rows[0].verified), two_factor_enabled: Boolean(rows[0].two_factor_enabled) });
+    res.json(await loadAccount(req.user.user_id));
   } catch (e) { next(e); }
 });
 
-// PUT /api/auth/me  (update only the fields sent)
+// PUT /api/auth/me  (update only the fields sent; send null to clear an optional field)
+// Answers with the whole updated account + profile, so the app can show it without another GET.
 router.put('/me', requireAuth, async (req, res, next) => {
   try {
-    const b = req.body || {};
-    const userFields = {}, profileFields = {};
-    for (const k of ['first_name', 'last_name', 'date_of_birth']) if (b[k] !== undefined) userFields[k] = b[k];
-    for (const k of ['height', 'clothing_size', 'preferences', 'profile_image']) if (b[k] !== undefined) profileFields[k] = b[k];
-    if (b.height !== undefined && (isNaN(Number(b.height)) || Number(b.height) <= 0))
-      return res.status(400).json({ error: 'Height must be a positive number.' });
-    if (userFields.first_name === '' || userFields.last_name === '')
-      return res.status(400).json({ error: 'Names cannot be empty.' });
+    const parsed = parseProfileUpdate(req.body || {});
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const { userFields, profileFields } = parsed;
     if (!Object.keys(userFields).length && !Object.keys(profileFields).length)
       return res.status(400).json({ error: 'No valid fields to update.' });
 
+    // Column names only ever come from the fixed lists above, never from the request, so this is safe to build.
     const set = (o) => Object.keys(o).map((k) => `${k} = ?`).join(', ');
     if (Object.keys(userFields).length)
       await db.query(`UPDATE Users SET ${set(userFields)} WHERE user_id = ?`, [...Object.values(userFields), req.user.user_id]);
-    if (Object.keys(profileFields).length)
-      await db.query(`UPDATE User_Profile SET ${set(profileFields)} WHERE user_id = ?`, [...Object.values(profileFields), req.user.user_id]);
-    res.json({ message: 'Account updated.' });
+    if (Object.keys(profileFields).length) {
+      // Upsert, in case this account never got a User_Profile row (e.g. made by hand in SQL).
+      const cols = Object.keys(profileFields);
+      await db.query(
+        `INSERT INTO User_Profile (user_id, ${cols.join(', ')}) VALUES (?, ${cols.map(() => '?').join(', ')})
+         ON DUPLICATE KEY UPDATE ${cols.map((k) => `${k} = VALUES(${k})`).join(', ')}`,
+        [req.user.user_id, ...Object.values(profileFields)]
+      );
+    }
+    res.json({ message: 'Profile updated.', user: await loadAccount(req.user.user_id) });
   } catch (e) { next(e); }
 });
 

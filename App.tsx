@@ -17,6 +17,7 @@ import ChangePasswordScreen from './screens/settings/ChangePasswordScreen';
 import DeleteAccountScreen from './screens/settings/DeleteAccountScreen';
 import ChangeEmailScreen from './screens/settings/ChangeEmailScreen';
 import TwoFactorScreen from './screens/settings/TwoFactorScreen';
+import ProfileScreen from './screens/settings/ProfileScreen';
 import CreateOutfitScreen from './screens/wardrobe/CreateOutfitScreen';
 
 const Stack = createNativeStackNavigator();
@@ -60,6 +61,7 @@ function MyStack() {
             options={{ headerShown: false }}
           />
           <Stack.Screen name="Settings" component={SettingsScreen} />
+          <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Your Profile' }} />
           <Stack.Screen name="Appearance" component={AppearanceScreen} />
           <Stack.Screen
             name="ChangeEmail"

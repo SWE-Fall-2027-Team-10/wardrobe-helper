@@ -12,13 +12,16 @@ type SettingsItem = {
 
 // Settings Screen
 // The settings screen is where users can manage their account and app settings. 
-// It provides options for signing out, changing email and password, managing 2FA settings, deleting the account, and changing the app's appearance.
+// It provides options for editing the profile, signing out, changing email and password, managing 2FA settings, deleting the account, and changing the app's appearance.
 export default function SettingsScreen() {
   const { signOut } = useAuth();
   const theme = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
 
   const settingsSections: { title: string; data: SettingsItem[] }[] = [
+    { title: 'Profile', data: [
+      { label: 'Edit Profile & Measurements', onPress: () => navigation.navigate('Profile') },
+    ]},
     { title: 'Account and Security', data: [
       { label: 'Sign Out', onPress: signOut },
       // TODO: Merge the "Change Email" and "Change Password" and "2FA Settings" into one "Credentials" screen, and implement the backend for those features. 
